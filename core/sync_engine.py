@@ -1,0 +1,268 @@
+import logging
+from datetime import date
+from typing import List, Set, Tuple
+
+from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET
+from core.gap_detector import GapDetector
+from core.rate_limiter import RateLimiter
+from core.validator import KlineValidator
+from db.repositories.adjust_factor_repo import AdjustFactorRepository
+from db.repositories.calendar_repo import CalendarRepository
+from db.repositories.gap_repo import GapRepository
+from db.repositories.kline_repo import KlineRepository
+from db.repositories.sync_meta_repo import SyncMetaRepository
+from futu.adjust_factor_fetcher import AdjustFactorFetcher
+from futu.calendar_fetcher import CalendarFetcher
+from futu.kline_fetcher import KlineFetcher
+from models.enums import SyncStatus
+from models.stock import Stock
+
+logger = logging.getLogger(__name__)
+
+
+class SyncEngine:
+    """
+    核心同步编排器。
+    负责全量历史拉取、增量同步、空洞检测与修复。
+    绝对禁止任何自动交易逻辑。
+    """
+
+    def __init__(
+        self,
+        kline_repo: KlineRepository,
+        calendar_repo: CalendarRepository,
+        sync_meta_repo: SyncMetaRepository,
+        gap_repo: GapRepository,
+        adjust_factor_repo: AdjustFactorRepository,
+        kline_fetcher: KlineFetcher,
+        calendar_fetcher: CalendarFetcher,
+        adjust_factor_fetcher: AdjustFactorFetcher,
+        gap_detector: GapDetector,
+        validator: KlineValidator,
+        rate_limiter: RateLimiter,
+    ):
+        self._kline_repo = kline_repo
+        self._calendar_repo = calendar_repo
+        self._sync_meta_repo = sync_meta_repo
+        self._gap_repo = gap_repo
+        self._adjust_factor_repo = adjust_factor_repo
+        self._kline_fetcher = kline_fetcher
+        self._calendar_fetcher = calendar_fetcher
+        self._adjust_factor_fetcher = adjust_factor_fetcher
+        self._gap_detector = gap_detector
+        self._validator = validator
+        self._rate_limiter = rate_limiter
+
+    def run_full_sync(
+        self,
+        active_stocks: List[Stock],
+        newly_added: List[Stock],
+        reactivated: List[Stock],
+    ) -> None:
+        """
+        对所有活跃股票执行同步。
+        - newly_added: 强制全量历史拉取
+        - reactivated: 从 first_sync_date 开始补洞
+        - 其余: 增量同步（从上次成功同步日期开始）
+        """
+        newly_added_codes: Set[str] = {s.stock_code for s in newly_added}
+        reactivated_codes: Set[str] = {s.stock_code for s in reactivated}
+        today = date.today().strftime("%Y-%m-%d")
+
+        total = len(active_stocks)
+        for idx, stock in enumerate(active_stocks, 1):
+            force_full = stock.stock_code in newly_added_codes
+            is_reactivated = stock.stock_code in reactivated_codes
+            logger.info(
+                "[%d/%d] Syncing %s (force_full=%s, reactivated=%s)",
+                idx, total, stock.stock_code, force_full, is_reactivated
+            )
+            for period in ALL_PERIODS:
+                try:
+                    self._sync_one(
+                        stock=stock,
+                        period=period,
+                        today=today,
+                        force_full=force_full,
+                        is_reactivated=is_reactivated,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Sync failed for %s [%s]: %s",
+                        stock.stock_code, period, e, exc_info=True
+                    )
+                    self._sync_meta_repo.upsert(
+                        stock_code=stock.stock_code,
+                        period=period,
+                        status=SyncStatus.FAILED.value,
+                        error_message=str(e),
+                    )
+
+    def _sync_one(
+        self,
+        stock: Stock,
+        period: str,
+        today: str,
+        force_full: bool = False,
+        is_reactivated: bool = False,
+    ) -> None:
+        stock_code = stock.stock_code
+
+        # 1. 确定同步起始日
+        meta = self._sync_meta_repo.get(stock_code, period)
+        if force_full or meta is None:
+            start_date = DEFAULT_HISTORY_START
+        elif is_reactivated and meta.get("first_sync_date"):
+            start_date = meta["first_sync_date"]
+        elif meta.get("last_sync_date"):
+            start_date = meta["last_sync_date"]
+        else:
+            start_date = DEFAULT_HISTORY_START
+
+        logger.info(
+            "Sync %s [%s]: start_date=%s, end_date=%s",
+            stock_code, period, start_date, today
+        )
+
+        # 2. 标记运行中
+        self._sync_meta_repo.upsert(
+            stock_code=stock_code,
+            period=period,
+            status=SyncStatus.RUNNING.value,
+            first_sync_date=start_date if (force_full or meta is None) else None,
+        )
+
+        # 3. 确保交易日历已存在
+        self._ensure_calendar(stock.market, start_date, today)
+
+        # 4. 刷新复权因子（仅追加新事件，不修改历史）
+        self._refresh_adjust_factors(stock_code)
+
+        # 5. 修复已知空洞
+        self._heal_gaps(stock, period, start_date, today)
+
+        # 6. 拉取增量数据
+        rows_fetched, rows_inserted = self._fetch_and_store(
+            stock, period, start_date, today
+        )
+
+        # 7. 更新同步状态
+        self._sync_meta_repo.upsert(
+            stock_code=stock_code,
+            period=period,
+            status=SyncStatus.SUCCESS.value,
+            last_sync_date=today,
+            rows_fetched=rows_fetched,
+            rows_inserted=rows_inserted,
+        )
+        logger.info(
+            "Sync %s [%s] done: fetched=%d, inserted=%d",
+            stock_code, period, rows_fetched, rows_inserted
+        )
+
+    def _ensure_calendar(self, market: str, start_date: str, end_date: str) -> None:
+        """确保交易日历已存在，不足则从 API 拉取补充。"""
+        calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
+
+        if not self._calendar_repo.has_calendar(calendar_market, start_date, end_date):
+            logger.info(
+                "Fetching trading calendar for %s [%s~%s]",
+                calendar_market, start_date, end_date
+            )
+            trading_days = self._rate_limiter.execute_with_retry(
+                self._calendar_fetcher.fetch,
+                calendar_market, start_date, end_date
+            )
+            if trading_days:
+                self._calendar_repo.insert_many(calendar_market, trading_days)
+                logger.info(
+                    "Inserted %d trading days for %s", len(trading_days), calendar_market
+                )
+
+    def _refresh_adjust_factors(self, stock_code: str) -> None:
+        """从 API 拉取复权因子，仅追加新事件。"""
+        logger.debug("Refreshing adjust factors for %s", stock_code)
+        try:
+            factors = self._adjust_factor_fetcher.fetch_factors(stock_code)
+            if factors:
+                self._adjust_factor_repo.upsert_many(factors)
+                logger.debug(
+                    "Upserted %d adjust factors for %s", len(factors), stock_code
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to refresh adjust factors for %s: %s", stock_code, e
+            )
+
+    def _heal_gaps(
+        self, stock: Stock, period: str, start_date: str, end_date: str
+    ) -> None:
+        """检测并修复数据空洞。"""
+        stock_code = stock.stock_code
+
+        # 检测新空洞
+        gaps = self._gap_detector.detect_gaps(
+            stock_code=stock_code,
+            period=period,
+            market=stock.market,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        # 持久化新空洞
+        if gaps:
+            self._gap_repo.upsert_gaps(stock_code, period, gaps)
+
+        # 处理所有未填补的空洞（包括历史遗留）
+        open_gaps = self._gap_repo.get_open_gaps(stock_code, period)
+        for gap in open_gaps:
+            gap_id = gap["id"]
+            gap_start = gap["gap_start"]
+            gap_end = gap["gap_end"]
+            logger.info(
+                "Filling gap %s [%s] %s~%s", stock_code, period, gap_start, gap_end
+            )
+            self._gap_repo.mark_filling(gap_id)
+            try:
+                bars = self._rate_limiter.execute_with_retry(
+                    self._kline_fetcher.fetch_simple,
+                    stock_code, period, gap_start, gap_end
+                )
+                valid_bars, _ = self._validator.validate_many(bars)
+                if valid_bars:
+                    self._kline_repo.insert_many(valid_bars)
+                self._gap_repo.mark_filled(gap_id)
+                logger.info(
+                    "Gap filled %s [%s] %s~%s: %d bars",
+                    stock_code, period, gap_start, gap_end, len(valid_bars)
+                )
+            except Exception as e:
+                self._gap_repo.mark_failed(gap_id)
+                logger.error(
+                    "Gap fill failed %s [%s] %s~%s: %s",
+                    stock_code, period, gap_start, gap_end, e
+                )
+
+    def _fetch_and_store(
+        self, stock: Stock, period: str, start_date: str, end_date: str
+    ) -> Tuple[int, int]:
+        """拉取并存储K线数据，返回 (rows_fetched, rows_inserted)。"""
+        stock_code = stock.stock_code
+        bars = self._rate_limiter.execute_with_retry(
+            self._kline_fetcher.fetch_simple,
+            stock_code, period, start_date, end_date
+        )
+
+        rows_fetched = len(bars)
+        if not bars:
+            return 0, 0
+
+        valid_bars, invalid_bars = self._validator.validate_many(bars)
+        if invalid_bars:
+            logger.warning(
+                "%d invalid bars for %s [%s], skipping",
+                len(invalid_bars), stock_code, period
+            )
+
+        rows_inserted = self._kline_repo.insert_many(valid_bars)
+        return rows_fetched, rows_inserted
