@@ -49,23 +49,26 @@ class GapRepository:
         self, stock_code: str, period: str, gaps: List[tuple]
     ) -> None:
         """
-        批量写入空洞列表。
+        批量写入空洞列表（单事务，原子提交）。
         - 新空洞（不存在）：插入为 'open'
         - 已存在且为 'failed' 的空洞：重置为 'open' 以允许重试
         - 已存在且为 'open'/'filling'/'filled' 的空洞：不变
         """
-        for gap_start, gap_end in gaps:
-            with DBConnection(self._db_path) as conn:
-                conn.execute("""
-                    INSERT INTO data_gaps (stock_code, period, gap_start, gap_end, status)
-                    VALUES (?, ?, ?, ?, 'open')
-                    ON CONFLICT(stock_code, period, gap_start, gap_end) DO UPDATE SET
-                        status = CASE
-                            WHEN data_gaps.status = 'failed' THEN 'open'
-                            ELSE data_gaps.status
-                        END,
-                        detected_at = CASE
-                            WHEN data_gaps.status = 'failed' THEN datetime('now')
-                            ELSE data_gaps.detected_at
-                        END
-                """, (stock_code, period, gap_start, gap_end))
+        sql = """
+            INSERT INTO data_gaps (stock_code, period, gap_start, gap_end, status)
+            VALUES (?, ?, ?, ?, 'open')
+            ON CONFLICT(stock_code, period, gap_start, gap_end) DO UPDATE SET
+                status = CASE
+                    WHEN data_gaps.status = 'failed' THEN 'open'
+                    ELSE data_gaps.status
+                END,
+                detected_at = CASE
+                    WHEN data_gaps.status = 'failed' THEN datetime('now')
+                    ELSE data_gaps.detected_at
+                END
+        """
+        with DBConnection(self._db_path) as conn:
+            conn.executemany(sql, [
+                (stock_code, period, gap_start, gap_end)
+                for gap_start, gap_end in gaps
+            ])

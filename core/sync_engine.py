@@ -266,6 +266,7 @@ class SyncEngine:
             )
             self._kline_repo.insert_many(invalid_bars)  # is_valid=0 写入，供追查
 
+        # rows_inserted 仅统计有效行写入数；invalid_bars 写入量见上方 WARNING 日志
         rows_inserted = self._kline_repo.insert_many(valid_bars)
         return rows_fetched, rows_inserted
 
