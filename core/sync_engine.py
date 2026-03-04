@@ -121,6 +121,14 @@ class SyncEngine:
         else:
             start_date = DEFAULT_HISTORY_START
 
+        # 2a. 已是最新，跳过（1W/1M 末日推算可能超出今天）
+        if start_date > today:
+            logger.info(
+                "Sync %s [%s]: start_date=%s > today=%s, already up-to-date, skipping",
+                stock_code, period, start_date, today
+            )
+            return
+
         logger.info(
             "Sync %s [%s]: start_date=%s, end_date=%s",
             stock_code, period, start_date, today
