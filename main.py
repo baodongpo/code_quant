@@ -147,19 +147,13 @@ def main() -> None:
         subscription_manager: SubscriptionManager = deps["subscription_manager"]
         sync_engine: SyncEngine = deps["sync_engine"]
 
-        # 3. 注册实时K线推送回调
-        subscription_manager.setup_push_handler()
-
-        # 4. 加载 watchlist，执行差异检测
+        # 3. 加载 watchlist，执行差异检测
         logger.info("Loading watchlist...")
         active_stocks, newly_added, reactivated = watchlist_manager.load()
 
-        # 5. 同步订阅状态（即使 active_stocks 为空也执行，确保取消残留订阅）
-        logger.info("Syncing subscriptions...")
+        # 4. 同步订阅状态（取消全部残留订阅，释放富途订阅资源）
+        logger.info("Clearing subscriptions...")
         subscription_manager.sync_subscriptions(active_stocks)
-        logger.info(
-            "Subscriptions active: %d", subscription_manager.get_subscription_count()
-        )
 
         if not active_stocks:
             logger.warning("No active stocks in watchlist. Nothing to sync.")
@@ -170,7 +164,7 @@ def main() -> None:
             len(active_stocks), len(newly_added), len(reactivated)
         )
 
-        # 6. 执行历史数据同步（全量/增量/空洞修复）
+        # 5. 执行历史数据同步（全量/增量/空洞修复）
         logger.info("Starting data sync...")
         sync_engine.run_full_sync(active_stocks, newly_added, reactivated)
         logger.info("Data sync completed")

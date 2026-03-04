@@ -3,7 +3,7 @@ from typing import List, Callable, Optional
 
 from futu import RET_OK, SubType, CurKlineHandlerBase
 
-from config.settings import MAX_SUBSCRIPTIONS, ALL_PERIODS
+from config.settings import MAX_SUBSCRIPTIONS
 from db.repositories.kline_repo import KlineRepository
 from db.repositories.subscription_repo import SubscriptionRepository
 from futu_wrap.client import FutuClient
@@ -156,24 +156,10 @@ class SubscriptionManager:
 
     def sync_subscriptions(self, active_stocks: List[Stock]) -> None:
         """
-        批量对齐订阅状态与 watchlist：
-        - 活跃股票 → 确保已订阅（1D/1W/1M 三个周期）
-        - 非活跃或已移除的股票 → 确保已取消订阅
+        取消所有已有订阅，释放富途订阅资源。
+        当前系统以定时跑批模式运行（日/周/月K），不需要实时推送，
+        主动取消全部订阅避免占用订阅额度。
+        若将来升级为常驻进程 + 分钟K实时模式，再恢复订阅逻辑。
         """
-        active_codes = {s.stock_code for s in active_stocks}
-
-        # 取消不再活跃的股票订阅
         for sub in self._sub_repo.get_all_subscribed():
-            if sub["stock_code"] not in active_codes:
-                self.unsubscribe(sub["stock_code"], sub["period"])
-
-        # 订阅活跃股票的所有周期
-        for stock in active_stocks:
-            for period in ALL_PERIODS:
-                if not self._sub_repo.is_subscribed(stock.stock_code, period):
-                    success = self.subscribe(stock.stock_code, period)
-                    if not success:
-                        logger.warning(
-                            "Stopping subscription sync due to quota limit"
-                        )
-                        return
+            self.unsubscribe(sub["stock_code"], sub["period"])
