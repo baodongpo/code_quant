@@ -1,7 +1,7 @@
 import logging
 from typing import List, Callable, Optional
 
-from futu import RET_OK, SubType, KLType
+from futu import RET_OK, SubType, KlineHandlerBase
 
 from config.settings import MAX_SUBSCRIPTIONS, ALL_PERIODS
 from db.repositories.kline_repo import KlineRepository
@@ -20,15 +20,22 @@ _SUB_TYPE_MAP = {
     "1M": SubType.K_MON,
 }
 
+# 反查 period 字符串
+_KL_TYPE_TO_PERIOD = {v: k for k, v in _SUB_TYPE_MAP.items()}
 
-class KlinePushHandler:
-    """实时K线推送回调处理器，注册到 OpenQuoteContext。"""
+
+class KlinePushHandler(KlineHandlerBase):
+    """
+    实时K线推送回调处理器。
+    继承富途 SDK KlineHandlerBase，通过 ctx.set_handler() 注册到 OpenQuoteContext。
+    """
 
     def __init__(
         self,
         kline_repo: KlineRepository,
         on_bar_callback: Optional[Callable[[KlineBar], None]] = None,
     ):
+        super().__init__()
         self._kline_repo = kline_repo
         self._on_bar_callback = on_bar_callback
 
@@ -37,9 +44,10 @@ class KlinePushHandler:
         ret, content = super().on_recv_rsp(rsp_pb)
         if ret != RET_OK:
             logger.warning("KlinePush recv error: %s", content)
-            return
+            return ret, content
 
         self._handle(content)
+        return ret, content
 
     def handle_data(self, stock_code: str, period: str, data) -> None:
         """直接处理解析后的 DataFrame（供测试或手动调用）。"""
@@ -49,7 +57,6 @@ class KlinePushHandler:
     def _handle(self, content) -> None:
         """解析推送内容并存储。"""
         try:
-            # content 是 dict，包含 stock_code, period, data
             stock_code = content.get("stock_code", "")
             kl_type = content.get("kl_type", "")
             data = content.get("kline_list", None)
@@ -57,11 +64,7 @@ class KlinePushHandler:
             if not stock_code or data is None:
                 return
 
-            # 反查 period
-            period = next(
-                (p for p, t in _SUB_TYPE_MAP.items() if t == kl_type),
-                "1D"
-            )
+            period = _KL_TYPE_TO_PERIOD.get(kl_type, "1D")
             bars = KlineFetcher._parse_dataframe(stock_code, period, data)
             self._store(bars)
         except Exception as e:
@@ -96,6 +99,13 @@ class SubscriptionManager:
         self._kline_repo = kline_repo
         self._sub_repo = sub_repo
         self._max = max_subscriptions
+        self._push_handler: Optional[KlinePushHandler] = None
+
+    def setup_push_handler(self) -> None:
+        """创建并注册 K线推送回调到 OpenQuoteContext。应在 connect() 之后调用。"""
+        self._push_handler = KlinePushHandler(self._kline_repo)
+        self._client.ctx.set_handler(self._push_handler)
+        logger.info("KlinePushHandler registered")
 
     def subscribe(self, stock_code: str, period: str) -> bool:
         """
@@ -147,8 +157,8 @@ class SubscriptionManager:
     def sync_subscriptions(self, active_stocks: List[Stock]) -> None:
         """
         批量对齐订阅状态与 watchlist：
-        - 活跃股票 → 确保已订阅（仅订阅日K，其他周期通过历史接口拉取）
-        - 非活跃股票 → 确保已取消订阅
+        - 活跃股票 → 确保已订阅（1D/1W/1M 三个周期）
+        - 非活跃或已移除的股票 → 确保已取消订阅
         """
         active_codes = {s.stock_code for s in active_stocks}
 
@@ -157,18 +167,13 @@ class SubscriptionManager:
             if sub["stock_code"] not in active_codes:
                 self.unsubscribe(sub["stock_code"], sub["period"])
 
-        # 订阅活跃股票（仅日K推送，周K/月K数据量小，通过历史接口同步即可）
+        # 订阅活跃股票的所有周期
         for stock in active_stocks:
             for period in ALL_PERIODS:
                 if not self._sub_repo.is_subscribed(stock.stock_code, period):
                     success = self.subscribe(stock.stock_code, period)
                     if not success:
-                        # 额度不足时停止继续订阅
                         logger.warning(
                             "Stopping subscription sync due to quota limit"
                         )
                         return
-
-    def register_push_handler(self, handler) -> None:
-        """注册 K线推送回调到 OpenQuoteContext。"""
-        self._client.ctx.set_handler(handler)

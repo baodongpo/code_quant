@@ -23,8 +23,22 @@ class SyncMetaRepository:
         rows_fetched: int = 0,
         rows_inserted: int = 0,
         error_message: Optional[str] = None,
+        force_first_sync_date: bool = False,
     ) -> None:
-        sql = """
+        """
+        更新同步元数据。
+
+        first_sync_date 更新策略：
+        - force_first_sync_date=True（全量重同步场景）：强制覆盖
+        - force_first_sync_date=False（默认）：仅在 DB 中无值时写入
+        rows_fetched / rows_inserted 语义：本次同步的行数（非累计）。
+        """
+        if force_first_sync_date:
+            first_sync_date_sql = "excluded.first_sync_date"
+        else:
+            first_sync_date_sql = "COALESCE(sync_metadata.first_sync_date, excluded.first_sync_date)"
+
+        sql = f"""
             INSERT INTO sync_metadata
                 (stock_code, period, sync_status, last_sync_date, first_sync_date,
                  last_sync_ts, rows_fetched, rows_inserted, error_message)
@@ -32,13 +46,10 @@ class SyncMetaRepository:
             ON CONFLICT(stock_code, period) DO UPDATE SET
                 sync_status    = excluded.sync_status,
                 last_sync_date = COALESCE(excluded.last_sync_date, sync_metadata.last_sync_date),
-                first_sync_date = COALESCE(
-                    sync_metadata.first_sync_date,
-                    excluded.first_sync_date
-                ),
+                first_sync_date = {first_sync_date_sql},
                 last_sync_ts   = datetime('now'),
-                rows_fetched   = sync_metadata.rows_fetched + excluded.rows_fetched,
-                rows_inserted  = sync_metadata.rows_inserted + excluded.rows_inserted,
+                rows_fetched   = excluded.rows_fetched,
+                rows_inserted  = excluded.rows_inserted,
                 error_message  = excluded.error_message,
                 retry_count    = CASE
                     WHEN excluded.sync_status = 'failed'

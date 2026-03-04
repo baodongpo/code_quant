@@ -1,13 +1,15 @@
 import time
 import logging
 from collections import deque
-from typing import Callable, TypeVar, Any
+from typing import Callable, TypeVar
 
 from config.settings import (
     RATE_LIMIT_MIN_INTERVAL,
     RATE_LIMIT_WINDOW_SECONDS,
     RATE_LIMIT_MAX_IN_WINDOW,
     RATE_LIMIT_MAX_RETRIES,
+    GENERAL_RATE_LIMIT_WINDOW_SECONDS,
+    GENERAL_RATE_LIMIT_MAX_IN_WINDOW,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ _RETRYABLE_ERRORS = ("RateLimitError", "TimeoutError", "ConnectionError")
 
 class RateLimiter:
     """
-    双约束令牌桶，仅作用于历史K线查询请求（get_history_kline）。
+    双约束令牌桶，用于历史K线查询（get_history_kline）。
 
     约束1：每次请求最小间隔 MIN_INTERVAL 秒
     约束2：WINDOW_SECONDS 窗口内最多 MAX_IN_WINDOW 次请求
@@ -52,12 +54,10 @@ class RateLimiter:
 
         # 约束2：滑动窗口
         window_start = now - self._window_seconds
-        # 清除窗口外的旧记录
         while self._request_times and self._request_times[0] < window_start:
             self._request_times.popleft()
 
         if len(self._request_times) >= self._max_in_window:
-            # 等待最早的记录过期
             oldest = self._request_times[0]
             sleep_time = (oldest + self._window_seconds) - now + 0.01
             if sleep_time > 0:
@@ -104,5 +104,71 @@ class RateLimiter:
                     time.sleep(wait)
                 else:
                     raise
-        # 不可达，但让 mypy 满意
+        raise RuntimeError("execute_with_retry exhausted without return or raise")
+
+
+class GeneralRateLimiter:
+    """
+    单约束滑动窗口限频器，用于所有非K线富途接口（日历、复权因子等）。
+    富途全局限制：任意 30s 内所有接口调用总次数不超过 60 次。
+    无最小间隔约束。
+    """
+
+    def __init__(
+        self,
+        window_seconds: float = GENERAL_RATE_LIMIT_WINDOW_SECONDS,
+        max_in_window: int = GENERAL_RATE_LIMIT_MAX_IN_WINDOW,
+    ):
+        self._window_seconds = window_seconds
+        self._max_in_window = max_in_window
+        self._request_times: deque = deque()
+
+    def acquire(self) -> None:
+        now = time.monotonic()
+        window_start = now - self._window_seconds
+        while self._request_times and self._request_times[0] < window_start:
+            self._request_times.popleft()
+
+        if len(self._request_times) >= self._max_in_window:
+            oldest = self._request_times[0]
+            sleep_time = (oldest + self._window_seconds) - now + 0.01
+            if sleep_time > 0:
+                logger.debug(
+                    "GeneralRateLimiter: sleeping %.3fs (window limit %d/%d)",
+                    sleep_time, len(self._request_times), self._max_in_window
+                )
+                time.sleep(sleep_time)
+            now = time.monotonic()
+
+        self._request_times.append(now)
+
+    def execute_with_retry(
+        self,
+        func: Callable[..., T],
+        *args,
+        max_retries: int = RATE_LIMIT_MAX_RETRIES,
+        **kwargs,
+    ) -> T:
+        for attempt in range(max_retries + 1):
+            self.acquire()
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                error_type = type(e).__name__
+                is_retryable = any(
+                    name in error_type for name in _RETRYABLE_ERRORS
+                ) or any(
+                    name.lower() in str(e).lower()
+                    for name in ("rate limit", "timeout", "connection")
+                )
+
+                if is_retryable and attempt < max_retries:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "Retryable error on attempt %d/%d: %s. Retrying in %ds...",
+                        attempt + 1, max_retries, e, wait
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
         raise RuntimeError("execute_with_retry exhausted without return or raise")

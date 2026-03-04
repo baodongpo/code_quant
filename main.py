@@ -14,7 +14,7 @@ from logging.handlers import TimedRotatingFileHandler
 from config.settings import DB_PATH, LOG_DIR, OPEND_HOST, OPEND_PORT
 from core.adjustment_service import AdjustmentService
 from core.gap_detector import GapDetector
-from core.rate_limiter import RateLimiter
+from core.rate_limiter import RateLimiter, GeneralRateLimiter
 from core.sync_engine import SyncEngine
 from core.validator import KlineValidator
 from core.watchlist_manager import WatchlistManager
@@ -71,13 +71,16 @@ def build_dependencies(futu_client: FutuClient) -> dict:
     adjust_factor_repo = AdjustFactorRepository(DB_PATH)
     sub_repo = SubscriptionRepository(DB_PATH)
 
-    # Futu API
-    kline_fetcher = KlineFetcher(futu_client)
+    # 限频器
+    kline_rate_limiter = RateLimiter()           # 历史K线：双约束（0.5s + 30s/25次）
+    general_rate_limiter = GeneralRateLimiter()  # 其他接口：30s/60次
+
+    # Futu API（KlineFetcher 持有 rate_limiter，每页调用前控频）
+    kline_fetcher = KlineFetcher(futu_client, kline_rate_limiter)
     calendar_fetcher = CalendarFetcher(futu_client)
     adjust_factor_fetcher = AdjustFactorFetcher(futu_client)
 
     # Core services
-    rate_limiter = RateLimiter()
     validator = KlineValidator()
     gap_detector = GapDetector(calendar_repo, kline_repo)
     adjustment_service = AdjustmentService(kline_repo, adjust_factor_repo)
@@ -86,9 +89,7 @@ def build_dependencies(futu_client: FutuClient) -> dict:
     watchlist_manager = WatchlistManager(stock_repo, sync_meta_repo)
 
     # Subscription manager
-    subscription_manager = SubscriptionManager(
-        futu_client, kline_repo, sub_repo
-    )
+    subscription_manager = SubscriptionManager(futu_client, kline_repo, sub_repo)
 
     # Sync engine
     sync_engine = SyncEngine(
@@ -102,7 +103,7 @@ def build_dependencies(futu_client: FutuClient) -> dict:
         adjust_factor_fetcher=adjust_factor_fetcher,
         gap_detector=gap_detector,
         validator=validator,
-        rate_limiter=rate_limiter,
+        general_rate_limiter=general_rate_limiter,
     )
 
     return {
@@ -146,9 +147,19 @@ def main() -> None:
         subscription_manager: SubscriptionManager = deps["subscription_manager"]
         sync_engine: SyncEngine = deps["sync_engine"]
 
-        # 3. 加载 watchlist，执行差异检测
+        # 3. 注册实时K线推送回调
+        subscription_manager.setup_push_handler()
+
+        # 4. 加载 watchlist，执行差异检测
         logger.info("Loading watchlist...")
         active_stocks, newly_added, reactivated = watchlist_manager.load()
+
+        # 5. 同步订阅状态（即使 active_stocks 为空也执行，确保取消残留订阅）
+        logger.info("Syncing subscriptions...")
+        subscription_manager.sync_subscriptions(active_stocks)
+        logger.info(
+            "Subscriptions active: %d", subscription_manager.get_subscription_count()
+        )
 
         if not active_stocks:
             logger.warning("No active stocks in watchlist. Nothing to sync.")
@@ -159,14 +170,7 @@ def main() -> None:
             len(active_stocks), len(newly_added), len(reactivated)
         )
 
-        # 4. 同步实时订阅状态
-        logger.info("Syncing subscriptions...")
-        subscription_manager.sync_subscriptions(active_stocks)
-        logger.info(
-            "Subscriptions active: %d", subscription_manager.get_subscription_count()
-        )
-
-        # 5. 执行历史数据同步（全量/增量/空洞修复）
+        # 6. 执行历史数据同步（全量/增量/空洞修复）
         logger.info("Starting data sync...")
         sync_engine.run_full_sync(active_stocks, newly_added, reactivated)
         logger.info("Data sync completed")

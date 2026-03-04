@@ -1,10 +1,14 @@
 import logging
-from typing import List
+from datetime import date, timedelta
+from typing import List, TYPE_CHECKING
 
 from futu import KLType, RET_OK, AuType
 
 from futu.client import FutuClient
 from models.kline import KlineBar
+
+if TYPE_CHECKING:
+    from core.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +19,26 @@ _PERIOD_MAP = {
     "1M": KLType.K_MON,
 }
 
-# 每次请求最大返回行数（富途限制单次 1000 条）
+# 每次请求最大返回行数（富途单次上限 1000 条）
 _PAGE_SIZE = 1000
 
 
-class KlineFetcher:
-    """封装 get_history_kline，支持分页拉取原始未复权K线。"""
+def _next_date(date_str: str) -> str:
+    """返回给定日期的下一个自然日（格式 YYYY-MM-DD）。"""
+    y, m, d = date_str.split("-")
+    next_day = date(int(y), int(m), int(d)) + timedelta(days=1)
+    return next_day.strftime("%Y-%m-%d")
 
-    def __init__(self, client: FutuClient):
+
+class KlineFetcher:
+    """
+    封装 get_history_kline，支持分页拉取原始未复权K线。
+    每次翻页前通过 rate_limiter.acquire() 控频，确保每一页都受限频保护。
+    """
+
+    def __init__(self, client: FutuClient, rate_limiter: "RateLimiter"):
         self._client = client
+        self._rate_limiter = rate_limiter
 
     def fetch(
         self,
@@ -34,29 +49,28 @@ class KlineFetcher:
     ) -> List[KlineBar]:
         """
         拉取指定股票、周期、日期范围的历史K线（原始未复权）。
-        自动分页处理超过 1000 条的情况。
+        自动分页，每页调用前通过限频器控速。
         """
         kl_type = _PERIOD_MAP.get(period)
         if kl_type is None:
             raise ValueError(f"Unsupported period: {period}")
 
         all_bars: List[KlineBar] = []
-        next_time = start_date
+        current_start = start_date
 
         while True:
-            ret, data, next_page_req_key = self._client.ctx.request_history_kline(
+            self._rate_limiter.acquire()
+
+            ret, data = self._client.ctx.get_history_kline(
                 code=stock_code,
-                start=next_time,
+                start=current_start,
                 end=end_date,
                 ktype=kl_type,
-                autype=AuType.QFQ,  # 我们请求不复权，但 API 要求此参数；下方取原始价格字段
-                fields=None,        # 拉取所有字段
+                autype=AuType.NONE,   # 存原始未复权价格
+                fields=None,
                 max_count=_PAGE_SIZE,
-                page_req_key=None if next_time == start_date else next_page_req_key,
             )
 
-            # 注意：富途 request_history_kline 接口签名与 get_history_kline 不同
-            # 若 SDK 版本不支持 request_history_kline，退化到 get_history_kline
             if ret != RET_OK:
                 logger.error(
                     "get_history_kline failed for %s [%s]: %s",
@@ -75,47 +89,17 @@ class KlineFetcher:
                 len(bars), stock_code, period, len(all_bars)
             )
 
-            if next_page_req_key is None:
+            # 本页返回条数小于上限，已是最后一页
+            if len(bars) < _PAGE_SIZE:
                 break
-            next_time = next_page_req_key
+
+            # 下一页从本页最后一条的次日开始
+            last_date = bars[-1].trade_date
+            current_start = _next_date(last_date)
+            if current_start > end_date:
+                break
 
         return all_bars
-
-    def fetch_simple(
-        self,
-        stock_code: str,
-        period: str,
-        start_date: str,
-        end_date: str,
-    ) -> List[KlineBar]:
-        """
-        使用 get_history_kline（非分页版本）拉取，适用于数据量较小的场景。
-        """
-        kl_type = _PERIOD_MAP.get(period)
-        if kl_type is None:
-            raise ValueError(f"Unsupported period: {period}")
-
-        ret, data = self._client.ctx.get_history_kline(
-            code=stock_code,
-            start=start_date,
-            end=end_date,
-            ktype=kl_type,
-            autype=AuType.NONE,   # 不复权，存原始价格
-            fields=None,
-            max_count=_PAGE_SIZE,
-        )
-
-        if ret != RET_OK:
-            logger.error(
-                "get_history_kline failed for %s [%s]: %s",
-                stock_code, period, data
-            )
-            return []
-
-        if data is None or data.empty:
-            return []
-
-        return self._parse_dataframe(stock_code, period, data)
 
     @staticmethod
     def _parse_dataframe(stock_code: str, period: str, df) -> List[KlineBar]:

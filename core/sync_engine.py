@@ -4,7 +4,7 @@ from typing import List, Set, Tuple
 
 from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET
 from core.gap_detector import GapDetector
-from core.rate_limiter import RateLimiter
+from core.rate_limiter import GeneralRateLimiter
 from core.validator import KlineValidator
 from db.repositories.adjust_factor_repo import AdjustFactorRepository
 from db.repositories.calendar_repo import CalendarRepository
@@ -39,7 +39,7 @@ class SyncEngine:
         adjust_factor_fetcher: AdjustFactorFetcher,
         gap_detector: GapDetector,
         validator: KlineValidator,
-        rate_limiter: RateLimiter,
+        general_rate_limiter: GeneralRateLimiter,
     ):
         self._kline_repo = kline_repo
         self._calendar_repo = calendar_repo
@@ -51,7 +51,7 @@ class SyncEngine:
         self._adjust_factor_fetcher = adjust_factor_fetcher
         self._gap_detector = gap_detector
         self._validator = validator
-        self._rate_limiter = rate_limiter
+        self._general_rate_limiter = general_rate_limiter
 
     def run_full_sync(
         self,
@@ -124,18 +124,19 @@ class SyncEngine:
             stock_code, period, start_date, today
         )
 
-        # 2. 标记运行中
+        # 2. 标记运行中；force_full 时强制更新 first_sync_date
         self._sync_meta_repo.upsert(
             stock_code=stock_code,
             period=period,
             status=SyncStatus.RUNNING.value,
             first_sync_date=start_date if (force_full or meta is None) else None,
+            force_first_sync_date=(force_full or meta is None),
         )
 
-        # 3. 确保交易日历已存在
+        # 3. 确保交易日历已存在（使用通用限频器）
         self._ensure_calendar(stock.market, start_date, today)
 
-        # 4. 刷新复权因子（仅追加新事件，不修改历史）
+        # 4. 刷新复权因子（使用通用限频器，仅追加新事件）
         self._refresh_adjust_factors(stock_code)
 
         # 5. 修复已知空洞
@@ -161,7 +162,7 @@ class SyncEngine:
         )
 
     def _ensure_calendar(self, market: str, start_date: str, end_date: str) -> None:
-        """确保交易日历已存在，不足则从 API 拉取补充。"""
+        """确保交易日历已存在，不足则从 API 拉取补充（使用通用限频器）。"""
         calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
 
         if not self._calendar_repo.has_calendar(calendar_market, start_date, end_date):
@@ -169,7 +170,7 @@ class SyncEngine:
                 "Fetching trading calendar for %s [%s~%s]",
                 calendar_market, start_date, end_date
             )
-            trading_days = self._rate_limiter.execute_with_retry(
+            trading_days = self._general_rate_limiter.execute_with_retry(
                 self._calendar_fetcher.fetch,
                 calendar_market, start_date, end_date
             )
@@ -180,10 +181,13 @@ class SyncEngine:
                 )
 
     def _refresh_adjust_factors(self, stock_code: str) -> None:
-        """从 API 拉取复权因子，仅追加新事件。"""
+        """从 API 拉取复权因子，仅追加新事件（使用通用限频器）。"""
         logger.debug("Refreshing adjust factors for %s", stock_code)
         try:
-            factors = self._adjust_factor_fetcher.fetch_factors(stock_code)
+            factors = self._general_rate_limiter.execute_with_retry(
+                self._adjust_factor_fetcher.fetch_factors,
+                stock_code
+            )
             if factors:
                 self._adjust_factor_repo.upsert_many(factors)
                 logger.debug(
@@ -197,10 +201,10 @@ class SyncEngine:
     def _heal_gaps(
         self, stock: Stock, period: str, start_date: str, end_date: str
     ) -> None:
-        """检测并修复数据空洞。"""
+        """检测并修复数据空洞（空洞补填使用历史K线限频器）。"""
         stock_code = stock.stock_code
 
-        # 检测新空洞
+        # 检测新空洞并持久化（failed 的会被重置为 open）
         gaps = self._gap_detector.detect_gaps(
             stock_code=stock_code,
             period=period,
@@ -208,12 +212,10 @@ class SyncEngine:
             start_date=start_date,
             end_date=end_date,
         )
-
-        # 持久化新空洞
         if gaps:
             self._gap_repo.upsert_gaps(stock_code, period, gaps)
 
-        # 处理所有未填补的空洞（包括历史遗留）
+        # 处理所有 open 状态的空洞（含刚重置的 failed）
         open_gaps = self._gap_repo.get_open_gaps(stock_code, period)
         for gap in open_gaps:
             gap_id = gap["id"]
@@ -224,17 +226,19 @@ class SyncEngine:
             )
             self._gap_repo.mark_filling(gap_id)
             try:
-                bars = self._rate_limiter.execute_with_retry(
-                    self._kline_fetcher.fetch_simple,
+                bars = self._fetch_klines_paged(
                     stock_code, period, gap_start, gap_end
                 )
-                valid_bars, _ = self._validator.validate_many(bars)
+                valid_bars, invalid_bars = self._validator.validate_many(bars)
                 if valid_bars:
                     self._kline_repo.insert_many(valid_bars)
+                if invalid_bars:
+                    self._kline_repo.insert_many(invalid_bars)  # 以 is_valid=0 写入
                 self._gap_repo.mark_filled(gap_id)
                 logger.info(
-                    "Gap filled %s [%s] %s~%s: %d bars",
-                    stock_code, period, gap_start, gap_end, len(valid_bars)
+                    "Gap filled %s [%s] %s~%s: %d valid, %d invalid",
+                    stock_code, period, gap_start, gap_end,
+                    len(valid_bars), len(invalid_bars)
                 )
             except Exception as e:
                 self._gap_repo.mark_failed(gap_id)
@@ -248,10 +252,7 @@ class SyncEngine:
     ) -> Tuple[int, int]:
         """拉取并存储K线数据，返回 (rows_fetched, rows_inserted)。"""
         stock_code = stock.stock_code
-        bars = self._rate_limiter.execute_with_retry(
-            self._kline_fetcher.fetch_simple,
-            stock_code, period, start_date, end_date
-        )
+        bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
 
         rows_fetched = len(bars)
         if not bars:
@@ -260,9 +261,20 @@ class SyncEngine:
         valid_bars, invalid_bars = self._validator.validate_many(bars)
         if invalid_bars:
             logger.warning(
-                "%d invalid bars for %s [%s], skipping",
+                "%d invalid bars for %s [%s], storing with is_valid=0",
                 len(invalid_bars), stock_code, period
             )
+            self._kline_repo.insert_many(invalid_bars)  # is_valid=0 写入，供追查
 
         rows_inserted = self._kline_repo.insert_many(valid_bars)
         return rows_fetched, rows_inserted
+
+    def _fetch_klines_paged(
+        self, stock_code: str, period: str, start_date: str, end_date: str
+    ) -> list:
+        """
+        分页拉取K线。
+        RateLimiter.acquire() 已内置在 KlineFetcher.fetch() 的每页循环中，
+        此处直接调用，无需外层 execute_with_retry 包装。
+        """
+        return self._kline_fetcher.fetch(stock_code, period, start_date, end_date)

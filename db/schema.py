@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS data_gaps (
     filled_at   TEXT,
     status      TEXT NOT NULL DEFAULT 'open'
                 CHECK(status IN ('open','filling','filled','failed')),
+    UNIQUE (stock_code, period, gap_start, gap_end),
     FOREIGN KEY (stock_code) REFERENCES stocks(stock_code)
 );
 """
@@ -150,7 +151,8 @@ ALL_DDLS = [
 
 def init_db(db_path: str) -> None:
     """初始化数据库，创建所有表和索引。"""
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    parent = os.path.dirname(os.path.abspath(db_path))
+    os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         conn.execute("PRAGMA journal_mode=WAL;")
