@@ -3,7 +3,7 @@ from typing import List
 
 from futu import RET_OK
 
-from futu.client import FutuClient
+from futu_wrap.client import FutuClient
 from models.kline import AdjustFactor
 
 logger = logging.getLogger(__name__)

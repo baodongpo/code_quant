@@ -1,13 +1,13 @@
 import logging
 from typing import List, Callable, Optional
 
-from futu import RET_OK, SubType, KlineHandlerBase
+from futu import RET_OK, SubType, CurKlineHandlerBase
 
 from config.settings import MAX_SUBSCRIPTIONS, ALL_PERIODS
 from db.repositories.kline_repo import KlineRepository
 from db.repositories.subscription_repo import SubscriptionRepository
-from futu.client import FutuClient
-from futu.kline_fetcher import KlineFetcher
+from futu_wrap.client import FutuClient
+from futu_wrap.kline_fetcher import KlineFetcher
 from models.kline import KlineBar
 from models.stock import Stock
 
@@ -24,10 +24,10 @@ _SUB_TYPE_MAP = {
 _KL_TYPE_TO_PERIOD = {v: k for k, v in _SUB_TYPE_MAP.items()}
 
 
-class KlinePushHandler(KlineHandlerBase):
+class KlinePushHandler(CurKlineHandlerBase):
     """
     实时K线推送回调处理器。
-    继承富途 SDK KlineHandlerBase，通过 ctx.set_handler() 注册到 OpenQuoteContext。
+    继承富途 SDK CurKlineHandlerBase，通过 ctx.set_handler() 注册到 OpenQuoteContext。
     """
 
     def __init__(

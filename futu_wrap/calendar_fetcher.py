@@ -3,7 +3,7 @@ from typing import List
 
 from futu import RET_OK, Market as FutuMarket
 
-from futu.client import FutuClient
+from futu_wrap.client import FutuClient
 
 logger = logging.getLogger(__name__)
 

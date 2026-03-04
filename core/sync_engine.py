@@ -11,9 +11,9 @@ from db.repositories.calendar_repo import CalendarRepository
 from db.repositories.gap_repo import GapRepository
 from db.repositories.kline_repo import KlineRepository
 from db.repositories.sync_meta_repo import SyncMetaRepository
-from futu.adjust_factor_fetcher import AdjustFactorFetcher
-from futu.calendar_fetcher import CalendarFetcher
-from futu.kline_fetcher import KlineFetcher
+from futu_wrap.adjust_factor_fetcher import AdjustFactorFetcher
+from futu_wrap.calendar_fetcher import CalendarFetcher
+from futu_wrap.kline_fetcher import KlineFetcher
 from models.enums import SyncStatus
 from models.stock import Stock
 

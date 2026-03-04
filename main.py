@@ -26,11 +26,11 @@ from db.repositories.stock_repo import StockRepository
 from db.repositories.subscription_repo import SubscriptionRepository
 from db.repositories.sync_meta_repo import SyncMetaRepository
 from db.schema import init_db
-from futu.adjust_factor_fetcher import AdjustFactorFetcher
-from futu.calendar_fetcher import CalendarFetcher
-from futu.client import FutuClient
-from futu.kline_fetcher import KlineFetcher
-from futu.subscription_manager import SubscriptionManager
+from futu_wrap.adjust_factor_fetcher import AdjustFactorFetcher
+from futu_wrap.calendar_fetcher import CalendarFetcher
+from futu_wrap.client import FutuClient
+from futu_wrap.kline_fetcher import KlineFetcher
+from futu_wrap.subscription_manager import SubscriptionManager
 
 
 def setup_logging() -> None:

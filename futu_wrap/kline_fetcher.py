@@ -6,7 +6,7 @@ from typing import List, TYPE_CHECKING
 from futu import KLType, RET_OK, AuType
 
 from config.settings import RATE_LIMIT_MAX_RETRIES
-from futu.client import FutuClient
+from futu_wrap.client import FutuClient
 from models.kline import KlineBar
 
 if TYPE_CHECKING:
