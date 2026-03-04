@@ -1,10 +1,28 @@
-[
-  {"stock_code": "HK.00700", "market": "HK", "asset_type": "stock",
-   "is_active": true, "lot_size": 100, "currency": "HKD"},
-  {"stock_code": "US.AAPL",  "market": "US", "asset_type": "stock",
-   "is_active": true, "lot_size": 1,   "currency": "USD"},
-  {"stock_code": "SH.600519","market": "A",  "asset_type": "stock",
-   "is_active": true, "lot_size": 100, "currency": "CNY"},
-  {"stock_code": "SZ.000001","market": "A",  "asset_type": "stock",
-   "is_active": false, "lot_size": 100, "currency": "CNY"}
-]
+{
+  "markets": [
+    {
+      "market": "HK",
+      "enabled": true,
+      "stocks": [
+        {"stock_code": "HK.00700", "asset_type": "stock", "is_active": true,  "lot_size": 100, "currency": "HKD"},
+        {"stock_code": "HK.09988", "asset_type": "stock", "is_active": false, "lot_size": 100, "currency": "HKD"}
+      ]
+    },
+    {
+      "market": "US",
+      "enabled": false,
+      "stocks": [
+        {"stock_code": "US.AAPL",  "asset_type": "stock", "is_active": true, "lot_size": 1, "currency": "USD"},
+        {"stock_code": "US.TSLA",  "asset_type": "stock", "is_active": true, "lot_size": 1, "currency": "USD"}
+      ]
+    },
+    {
+      "market": "A",
+      "enabled": true,
+      "stocks": [
+        {"stock_code": "SH.600519", "asset_type": "stock", "is_active": true,  "lot_size": 100, "currency": "CNY"},
+        {"stock_code": "SZ.000001", "asset_type": "stock", "is_active": false, "lot_size": 100, "currency": "CNY"}
+      ]
+    }
+  ]
+}

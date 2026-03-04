@@ -95,7 +95,7 @@ class WatchlistManager:
     def _load_json(self) -> List[Stock]:
         try:
             with open(self._watchlist_path, "r", encoding="utf-8") as f:
-                items = json.load(f)
+                data = json.load(f)
         except FileNotFoundError:
             logger.error("watchlist.json not found at %s", self._watchlist_path)
             return []
@@ -104,16 +104,20 @@ class WatchlistManager:
             return []
 
         stocks = []
-        for item in items:
-            try:
-                stocks.append(Stock(
-                    stock_code=item["stock_code"],
-                    market=item["market"],
-                    asset_type=item["asset_type"],
-                    is_active=bool(item.get("is_active", True)),
-                    lot_size=int(item.get("lot_size", 1)),
-                    currency=item["currency"],
-                ))
-            except (KeyError, ValueError, TypeError) as e:
-                logger.warning("Invalid watchlist entry %s: %s", item, e)
+        for market_node in data.get("markets", []):
+            market = market_node.get("market", "")
+            market_enabled = bool(market_node.get("enabled", True))
+            for item in market_node.get("stocks", []):
+                try:
+                    stock_active = bool(item.get("is_active", True))
+                    stocks.append(Stock(
+                        stock_code=item["stock_code"],
+                        market=market,
+                        asset_type=item["asset_type"],
+                        is_active=market_enabled and stock_active,
+                        lot_size=int(item.get("lot_size", 1)),
+                        currency=item["currency"],
+                    ))
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.warning("Invalid watchlist entry %s: %s", item, e)
         return stocks
