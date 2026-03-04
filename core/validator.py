@@ -34,8 +34,6 @@ class KlineValidator:
                     "Invalid bar %s [%s] %s: %s",
                     bar.stock_code, bar.period, bar.trade_date, "; ".join(issues)
                 )
-                object.__setattr__(bar, "is_valid", False) if hasattr(bar, "__dict__") else None
-                # dataclass 不可用 setattr 直接改（is_valid 是普通字段，可以改）
                 invalid.append(KlineBar(
                     stock_code=bar.stock_code,
                     period=bar.period,

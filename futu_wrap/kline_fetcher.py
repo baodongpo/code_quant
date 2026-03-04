@@ -91,7 +91,7 @@ class KlineFetcher:
                 end=end,
                 ktype=kl_type,
                 autype=AuType.NONE,
-                fields=[""],
+                fields=None,
                 max_count=_PAGE_SIZE,
                 page_req_key=page_req_key,
             )
