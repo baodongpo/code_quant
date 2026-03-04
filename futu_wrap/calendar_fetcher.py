@@ -1,24 +1,29 @@
 import logging
+from datetime import date, timedelta
 from typing import List
+import time
 
-from futu import RET_OK, Market as FutuMarket
+from futu import RET_OK, TradeDateMarket
 
 from futu_wrap.client import FutuClient
 
 logger = logging.getLogger(__name__)
 
-# 本系统 market 字符串 → 富途 Market 枚举映射
+# 本系统 market 字符串 → 富途 TradeDateMarket 枚举映射
 _MARKET_MAP = {
-    "HK": FutuMarket.HK,
-    "US": FutuMarket.US,
-    "SH": FutuMarket.SH,
-    "SZ": FutuMarket.SZ,
-    "A":  FutuMarket.SH,   # A股用 SH 日历
+    "HK": TradeDateMarket.HK,
+    "US": TradeDateMarket.US,
+    "SH": TradeDateMarket.CN,
+    "SZ": TradeDateMarket.CN,
+    "A":  TradeDateMarket.CN,
 }
+
+# request_trading_days 单次查询最大跨度（天）
+_MAX_DAYS_PER_REQUEST = 365
 
 
 class CalendarFetcher:
-    """封装 get_trading_days，获取指定市场的交易日列表。"""
+    """封装 request_trading_days，获取指定市场的交易日列表。"""
 
     def __init__(self, client: FutuClient):
         self._client = client
@@ -26,33 +31,41 @@ class CalendarFetcher:
     def fetch(self, market: str, start_date: str, end_date: str) -> List[str]:
         """
         拉取指定市场在 [start_date, end_date] 范围内的交易日列表。
+        自动按 365 天分段拉取。
         返回格式：['YYYY-MM-DD', ...]，升序排列。
         """
         futu_market = _MARKET_MAP.get(market)
         if futu_market is None:
             raise ValueError(f"Unsupported market for calendar: {market}")
 
-        ret, data = self._client.ctx.get_trading_days(
-            market=futu_market,
-            start=start_date,
-            end=end_date,
-        )
+        all_days: List[str] = []
+        seg_start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
 
-        if ret != RET_OK:
-            logger.error(
-                "get_trading_days failed for market=%s [%s~%s]: %s",
-                market, start_date, end_date, data
+        while seg_start <= end:
+            seg_end = min(seg_start + timedelta(days=_MAX_DAYS_PER_REQUEST - 1), end)
+            ret, data = self._client.ctx.request_trading_days(
+                market=futu_market,
+                start=seg_start.strftime("%Y-%m-%d"),
+                end=seg_end.strftime("%Y-%m-%d"),
             )
-            return []
 
-        if data is None or data.empty:
-            return []
+            if ret != RET_OK:
+                logger.error(
+                    "request_trading_days failed for market=%s [%s~%s]: %s",
+                    market, seg_start, seg_end, data
+                )
+                break
 
-        # 富途返回的列名为 'time'
-        col = "time" if "time" in data.columns else data.columns[0]
-        trading_days = [str(d)[:10] for d in data[col].tolist()]
-        logger.debug(
-            "Fetched %d trading days for %s [%s~%s]",
-            len(trading_days), market, start_date, end_date
-        )
-        return sorted(set(trading_days))
+            if data:
+                all_days.extend(item["time"][:10] for item in data)
+
+            logger.debug(
+                "Fetched %d trading days for %s [%s~%s]",
+                len(data) if data else 0, market, seg_start, seg_end
+            )
+            seg_start = seg_end + timedelta(days=1)
+            if seg_start <= end:
+                time.sleep(0.6)  # 分段间隔，避免触发富途全局限频
+
+        return sorted(set(all_days))
