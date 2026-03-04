@@ -164,12 +164,6 @@ def verify_stock(ctx: OpenQuoteContext, stock_code: str) -> bool:
             all_ok = False
             fail_count += 1
         total_count += 1
-        # 只打印除权事件附近（A != 1 或 B != 0）的日期，以及最近20天的数据
-        nearby_event = any(
-            abs((d > f.ex_date) - 0.5) < 0.5 and
-            abs((d[:10] >= f.ex_date or d[:10] < f.ex_date))
-            for f in recent_factors
-        )
         print(f"  {d:<12} {raw:>10.4f} {A:>12.8f} {B:>10.4f} {calc:>12.4f} {qfq:>12.4f} {diff:>10.4f}  {status}")
 
     print(f"\n  汇总: 共 {total_count} 个交易日，失败 {fail_count} 个")

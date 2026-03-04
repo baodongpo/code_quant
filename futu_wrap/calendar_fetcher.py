@@ -51,11 +51,10 @@ class CalendarFetcher:
             )
 
             if ret != RET_OK:
-                logger.error(
-                    "request_trading_days failed for market=%s [%s~%s]: %s",
-                    market, seg_start, seg_end, data
+                raise RuntimeError(
+                    f"request_trading_days failed for market={market} "
+                    f"[{seg_start}~{seg_end}]: {data}"
                 )
-                break
 
             if data:
                 all_days.extend(item["time"][:10] for item in data)
@@ -66,6 +65,8 @@ class CalendarFetcher:
             )
             seg_start = seg_end + timedelta(days=1)
             if seg_start <= end:
-                time.sleep(0.6)  # 分段间隔，避免触发富途全局限频
+                # 分段间手动限速：fetch() 内部实际发出多次 API 请求，
+                # 外层 execute_with_retry 仅计一次调用，sleep 在此直接控速。
+                time.sleep(0.6)
 
         return sorted(set(all_days))
