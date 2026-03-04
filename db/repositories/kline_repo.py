@@ -16,8 +16,8 @@ class KlineRepository:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         with DBConnection(self._db_path) as conn:
-            cursor = conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
-            return cursor.rowcount
+            conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
+            return conn.execute("SELECT changes()").fetchone()[0]
 
     def upsert_many(self, bars: List[KlineBar]) -> int:
         """INSERT OR REPLACE：实时推送更新当日 bar 用。返回受影响行数。"""
@@ -41,8 +41,8 @@ class KlineRepository:
                 updated_at    = datetime('now')
         """
         with DBConnection(self._db_path) as conn:
-            cursor = conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
-            return cursor.rowcount
+            conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
+            return conn.execute("SELECT changes()").fetchone()[0]
 
     def get_dates_in_range(
         self, stock_code: str, period: str, start_date: str, end_date: str

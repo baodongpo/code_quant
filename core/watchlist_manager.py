@@ -44,7 +44,6 @@ class WatchlistManager:
         to_deactivate: List[str] = []
 
         json_active_codes = {s.stock_code for s in json_stocks if s.is_active}
-        json_inactive_codes = {s.stock_code for s in json_stocks if not s.is_active}
         json_codes = {s.stock_code for s in json_stocks}
 
         for stock in json_stocks:

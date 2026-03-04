@@ -167,13 +167,19 @@ def init_db(db_path: str) -> None:
             for row in conn.execute("PRAGMA table_info(adjust_factors)").fetchall()
         }
         if "forward_factor_b" not in existing:
-            conn.execute(
-                "ALTER TABLE adjust_factors ADD COLUMN forward_factor_b REAL NOT NULL DEFAULT 0"
-            )
+            try:
+                conn.execute(
+                    "ALTER TABLE adjust_factors ADD COLUMN forward_factor_b REAL NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                pass  # 并发 init_db 时已由其他进程添加，忽略
         if "backward_factor_b" not in existing:
-            conn.execute(
-                "ALTER TABLE adjust_factors ADD COLUMN backward_factor_b REAL NOT NULL DEFAULT 0"
-            )
+            try:
+                conn.execute(
+                    "ALTER TABLE adjust_factors ADD COLUMN backward_factor_b REAL NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                pass  # 并发 init_db 时已由其他进程添加，忽略
         conn.commit()
     finally:
         conn.close()

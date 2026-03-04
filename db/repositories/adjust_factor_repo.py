@@ -7,8 +7,8 @@ class AdjustFactorRepository:
     def __init__(self, db_path: str):
         self._db_path = db_path
 
-    def upsert_many(self, factors: List[AdjustFactor]) -> None:
-        """插入或更新复权因子。仅插入新事件，不修改历史。"""
+    def insert_new_only(self, factors: List[AdjustFactor]) -> None:
+        """插入新复权因子，已存在的事件（stock_code, ex_date 相同）静默跳过，不修改历史数据。"""
         sql = """
             INSERT OR IGNORE INTO adjust_factors
                 (stock_code, ex_date, forward_factor, forward_factor_b,

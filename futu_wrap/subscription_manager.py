@@ -28,6 +28,9 @@ class KlinePushHandler(CurKlineHandlerBase):
     """
     实时K线推送回调处理器。
     继承富途 SDK CurKlineHandlerBase，通过 ctx.set_handler() 注册到 OpenQuoteContext。
+
+    注意：当前系统以定时跑批模式运行，实时推送功能未激活。
+    此 handler 仅在将来升级为常驻进程 + 实时订阅模式时使用。
     """
 
     def __init__(
@@ -64,7 +67,10 @@ class KlinePushHandler(CurKlineHandlerBase):
             if not stock_code or data is None:
                 return
 
-            period = _KL_TYPE_TO_PERIOD.get(kl_type, "1D")
+            period = _KL_TYPE_TO_PERIOD.get(kl_type)
+            if period is None:
+                logger.warning("Unknown kl_type in push: %s, skipping", kl_type)
+                return
             bars = KlineFetcher._parse_dataframe(stock_code, period, data)
             self._store(bars)
         except Exception as e:

@@ -191,7 +191,7 @@ class SyncEngine:
                 stock_code
             )
             if factors:
-                self._adjust_factor_repo.upsert_many(factors)
+                self._adjust_factor_repo.insert_new_only(factors)
                 logger.debug(
                     "Upserted %d adjust factors for %s", len(factors), stock_code
                 )
