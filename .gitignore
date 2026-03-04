@@ -18,3 +18,5 @@ build/
 futu_*.log
 # 个人持仓列表，不提交仓库（使用 watchlist.json.example 作为模板）
 watchlist.json
+# Claude Code 本地配置，不提交仓库
+.claude/

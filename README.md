@@ -165,6 +165,53 @@ python main.py
 tail -f logs/sync_$(date +%Y%m%d).log
 ```
 
+### 6. 配置每日定时任务（cron）
+
+建议在各市场收盘后自动触发同步，确保每日数据及时落库。
+
+**推荐触发时间**：
+
+| 市场 | 收盘时间 | 建议 cron 触发时间 |
+|------|---------|-----------------|
+| A股 / 港股 | 16:00 | 每日 17:00（收盘后 1 小时，等待数据就绪）|
+| 美股 | 次日 05:00（北京时间）| 每日 06:00（冬令时为 06:00，夏令时为 05:00）|
+
+**配置步骤**：
+
+```bash
+# 查看项目绝对路径
+pwd
+# 例：/Users/yourname/code_quant
+
+# 编辑 crontab
+crontab -e
+```
+
+在 crontab 中添加以下两条规则（按实际路径替换 `/path/to/code_quant`）：
+
+```cron
+# A股/港股收盘后同步（每日 17:00）
+0 17 * * 1-5 cd /path/to/code_quant && /path/to/code_quant/env_quant/bin/python main.py >> logs/cron.log 2>&1
+
+# 美股收盘后同步（每日 06:00，北京时间）
+0 6  * * 2-6 cd /path/to/code_quant && /path/to/code_quant/env_quant/bin/python main.py >> logs/cron.log 2>&1
+```
+
+> **注意**：
+> - cron 不继承 shell 环境，务必使用虚拟环境的 Python **绝对路径**（`env_quant/bin/python`），不要写 `python` 或 `mamba activate`
+> - 美股夏令时期间（3月第2个周日 ~ 11月第1个周日）收盘时间提前1小时，如需精确可将 06:00 改为 05:00
+> - macOS 需在「系统设置 → 隐私与安全 → 完全磁盘访问」中授权 cron，否则可能无法访问文件
+
+**查看 cron 执行日志**：
+
+```bash
+# 查看最新一次 cron 执行结果
+tail -50 logs/cron.log
+
+# 查看当日同步详细日志
+tail -f logs/sync_$(date +%Y%m%d).log
+```
+
 ---
 
 ## 配置说明
