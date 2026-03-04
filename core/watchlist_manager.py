@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from config.settings import WATCHLIST_PATH
 from db.repositories.stock_repo import StockRepository
@@ -37,6 +37,10 @@ class WatchlistManager:
           - reactivated:   本次重新激活的股票（is_active 0→1）
         """
         json_stocks = self._load_json()
+        if json_stocks is None:
+            raise RuntimeError(
+                f"Failed to load watchlist from {self._watchlist_path}, aborting to protect DB state."
+            )
         db_stocks = {s.stock_code: s for s in self._stock_repo.get_all()}
 
         newly_added: List[Stock] = []
@@ -80,9 +84,14 @@ class WatchlistManager:
             self._stock_repo.set_active(code, False)
 
         # 确保新增股票的 sync_metadata 存在（pending 状态）
-        for stock in newly_added + reactivated:
+        for stock in newly_added:
             for period in ALL_PERIODS:
                 self._sync_meta_repo.ensure_exists(stock.stock_code, period)
+
+        # 重新激活的股票将 sync_status 重置为 pending，触发增量补充同步
+        for stock in reactivated:
+            for period in ALL_PERIODS:
+                self._sync_meta_repo.set_status(stock.stock_code, period, "pending")
 
         active_stocks = [s for s in json_stocks if s.is_active]
         logger.info(
@@ -91,16 +100,16 @@ class WatchlistManager:
         )
         return active_stocks, newly_added, reactivated
 
-    def _load_json(self) -> List[Stock]:
+    def _load_json(self) -> Optional[List[Stock]]:
         try:
             with open(self._watchlist_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except FileNotFoundError:
             logger.error("watchlist.json not found at %s", self._watchlist_path)
-            return []
+            return None
         except json.JSONDecodeError as e:
             logger.error("watchlist.json parse error: %s", e)
-            return []
+            return None
 
         stocks = []
         for market_node in data.get("markets", []):

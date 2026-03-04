@@ -1,4 +1,5 @@
 import logging
+from datetime import date, timedelta
 from typing import List
 
 from db.repositories.kline_repo import KlineRepository
@@ -63,11 +64,13 @@ class AdjustmentService:
             return [self._mark_adjusted(b) for b in raw_bars]
 
         # 3. 构建前复权系数映射
-        # 对每个交易日，找到所有 ex_date > trade_date 的因子，累乘其 forward_factor
+        # 对每个交易日 t，OHLC 使用 t 日系数；last_close 语义为 t-1 日收盘价，使用 t-1 日系数
         adjusted_bars = []
         for bar in raw_bars:
             A, B = self._calc_forward_multiplier(bar.trade_date, factors)
-            adjusted_bars.append(self._apply_adjustment(bar, A, B))
+            prev_date = (date.fromisoformat(bar.trade_date) - timedelta(days=1)).isoformat()
+            A_prev, B_prev = self._calc_forward_multiplier(prev_date, factors)
+            adjusted_bars.append(self._apply_adjustment(bar, A, B, A_prev, B_prev))
 
         logger.debug(
             "Adjusted %d bars for %s [%s] from %s to %s",
@@ -101,8 +104,13 @@ class AdjustmentService:
         return A, B
 
     @staticmethod
-    def _apply_adjustment(bar: KlineBar, A: float, B: float) -> KlineBar:
-        """将前复权系数 (A, B) 应用到 OHLC 价格：adj = raw × A + B。volume 不调整。"""
+    def _apply_adjustment(bar: KlineBar, A: float, B: float, A_prev: float, B_prev: float) -> KlineBar:
+        """
+        将前复权系数应用到价格字段：adj = raw × A + B。
+        - OHLC 使用当日系数 (A, B)
+        - last_close 使用前一日系数 (A_prev, B_prev)，保证除权日 last_close == 前一日 close
+        - volume 不调整
+        """
         return KlineBar(
             stock_code=bar.stock_code,
             period=bar.period,
@@ -115,7 +123,7 @@ class AdjustmentService:
             turnover=bar.turnover,
             pe_ratio=bar.pe_ratio,
             turnover_rate=bar.turnover_rate,
-            last_close=round(bar.last_close * A + B, 4) if bar.last_close is not None else None,
+            last_close=round(bar.last_close * A_prev + B_prev, 4) if bar.last_close is not None else None,
             is_valid=bar.is_valid,
             is_adjusted=True,
         )

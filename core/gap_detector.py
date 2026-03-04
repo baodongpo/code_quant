@@ -117,8 +117,8 @@ class GapDetector:
         for i in range(1, len(missing)):
             prev = missing[i - 1]
             curr = missing[i]
-            prev_idx = td_index.get(prev, -1)
-            curr_idx = td_index.get(curr, -1)
+            prev_idx = td_index[prev]
+            curr_idx = td_index[curr]
 
             if curr_idx == prev_idx + 1:
                 # 交易日连续，延伸当前区间
