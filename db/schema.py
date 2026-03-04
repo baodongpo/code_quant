@@ -49,13 +49,15 @@ CREATE INDEX IF NOT EXISTS idx_kline_stock_period_date
 
 CREATE_ADJUST_FACTORS = """
 CREATE TABLE IF NOT EXISTS adjust_factors (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    stock_code      TEXT NOT NULL,
-    ex_date         TEXT NOT NULL,
-    forward_factor  REAL NOT NULL,
-    backward_factor REAL NOT NULL,
-    factor_source   TEXT NOT NULL DEFAULT 'futu',
-    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    stock_code       TEXT NOT NULL,
+    ex_date          TEXT NOT NULL,
+    forward_factor   REAL NOT NULL,          -- 乘法系数 A
+    forward_factor_b REAL NOT NULL DEFAULT 0, -- 加法偏移 B
+    backward_factor  REAL NOT NULL,
+    backward_factor_b REAL NOT NULL DEFAULT 0,
+    factor_source    TEXT NOT NULL DEFAULT 'futu',
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (stock_code, ex_date),
     FOREIGN KEY (stock_code) REFERENCES stocks(stock_code)
 );
@@ -159,6 +161,19 @@ def init_db(db_path: str) -> None:
         conn.execute("PRAGMA foreign_keys=ON;")
         for ddl in ALL_DDLS:
             conn.execute(ddl)
+        # 迁移：为旧版 adjust_factors 表补充 B 列（幂等）
+        existing = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(adjust_factors)").fetchall()
+        }
+        if "forward_factor_b" not in existing:
+            conn.execute(
+                "ALTER TABLE adjust_factors ADD COLUMN forward_factor_b REAL NOT NULL DEFAULT 0"
+            )
+        if "backward_factor_b" not in existing:
+            conn.execute(
+                "ALTER TABLE adjust_factors ADD COLUMN backward_factor_b REAL NOT NULL DEFAULT 0"
+            )
         conn.commit()
     finally:
         conn.close()

@@ -66,8 +66,8 @@ class AdjustmentService:
         # 对每个交易日，找到所有 ex_date > trade_date 的因子，累乘其 forward_factor
         adjusted_bars = []
         for bar in raw_bars:
-            multiplier = self._calc_forward_multiplier(bar.trade_date, factors)
-            adjusted_bars.append(self._apply_adjustment(bar, multiplier))
+            A, B = self._calc_forward_multiplier(bar.trade_date, factors)
+            adjusted_bars.append(self._apply_adjustment(bar, A, B))
 
         logger.debug(
             "Adjusted %d bars for %s [%s] from %s to %s",
@@ -76,40 +76,46 @@ class AdjustmentService:
         return adjusted_bars
 
     @staticmethod
-    def _calc_forward_multiplier(trade_date: str, factors: List[AdjustFactor]) -> float:
+    def _calc_forward_multiplier(trade_date: str, factors: List[AdjustFactor]) -> tuple:
         """
-        计算指定交易日的前复权乘数。
+        计算指定交易日的前复权系数 (A, B)，使得：
+            adj_price = raw_price × A + B
 
-        前复权：对该日期之后发生的所有除权事件，将其 forward_factor 累乘。
-        即：历史价格需要向前调整，以匹配当前价格量级。
-
-        注意：富途 forward_factor 是累乘值（已经是从最早到该除权日的累积因子）。
-        如果 SDK 返回的是每次除权的单次因子，则需要累乘所有 ex_date > trade_date 的因子。
+        前复权逻辑：将 ex_date > trade_date 的所有除权事件，
+        按时间从近到远（倒序）依次复合：
+            (A, B) 初始为 (1.0, 0.0)
+            对每个事件 (a, b)（由近到远）：
+                A_new = A × a
+                B_new = B × a + b
+        等价于：price_adj = (...((price × a_n + b_n) × a_{n-1} + b_{n-1})...) × a_1 + b_1
         """
-        multiplier = 1.0
-        for factor in factors:
-            # 除权日严格大于交易日时，该除权事件影响历史数据
-            if factor.ex_date > trade_date:
-                multiplier *= factor.forward_factor
-        return multiplier
+        # 筛选出 ex_date > trade_date 的事件，按时间倒序排列（最近的先处理）
+        relevant = [f for f in factors if f.ex_date > trade_date]
+        relevant.sort(key=lambda f: f.ex_date, reverse=True)
+
+        A, B = 1.0, 0.0
+        for f in relevant:
+            a, b = f.forward_factor, f.forward_factor_b
+            A = A * a
+            B = B * a + b
+        return A, B
 
     @staticmethod
-    def _apply_adjustment(bar: KlineBar, multiplier: float) -> KlineBar:
-        """将复权乘数应用到 OHLC 价格。volume 不调整。"""
-        from dataclasses import replace
+    def _apply_adjustment(bar: KlineBar, A: float, B: float) -> KlineBar:
+        """将前复权系数 (A, B) 应用到 OHLC 价格：adj = raw × A + B。volume 不调整。"""
         return KlineBar(
             stock_code=bar.stock_code,
             period=bar.period,
             trade_date=bar.trade_date,
-            open=round(bar.open * multiplier, 4),
-            high=round(bar.high * multiplier, 4),
-            low=round(bar.low * multiplier, 4),
-            close=round(bar.close * multiplier, 4),
+            open=round(bar.open * A + B, 4),
+            high=round(bar.high * A + B, 4),
+            low=round(bar.low * A + B, 4),
+            close=round(bar.close * A + B, 4),
             volume=bar.volume,
             turnover=bar.turnover,
             pe_ratio=bar.pe_ratio,
             turnover_rate=bar.turnover_rate,
-            last_close=round(bar.last_close * multiplier, 4) if bar.last_close else None,
+            last_close=round(bar.last_close * A + B, 4) if bar.last_close is not None else None,
             is_valid=bar.is_valid,
             is_adjusted=True,
         )

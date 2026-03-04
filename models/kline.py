@@ -23,7 +23,12 @@ class KlineBar:
 @dataclass
 class AdjustFactor:
     stock_code: str
-    ex_date: str           # 除权日 "YYYY-MM-DD"
-    forward_factor: float  # 前复权因子
-    backward_factor: float # 后复权因子（备用）
+    ex_date: str            # 除权日 "YYYY-MM-DD"
+    forward_factor: float   # 前复权乘法系数 A（拆送股调整）
+    forward_factor_b: float # 前复权加法偏移 B（现金分红调整）
+    backward_factor: float  # 后复权乘法系数 A（备用）
+    backward_factor_b: float # 后复权加法偏移 B（备用）
     factor_source: str = "futu"
+    # 前复权公式：adj_price = raw_price × A + B
+    # 对交易日 t，将 ex_date > t 的所有事件按时间倒序依次作用：
+    #   price = (...((price × A_n + B_n) × A_{n-1} + B_{n-1})...) × A_1 + B_1

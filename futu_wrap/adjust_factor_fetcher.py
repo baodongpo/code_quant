@@ -39,49 +39,36 @@ class AdjustFactorFetcher:
     @staticmethod
     def _parse_rehab(stock_code: str, df) -> List[AdjustFactor]:
         """
-        解析富途返回的除权除息 DataFrame，计算累乘前复权因子。
+        解析富途 get_rehab 返回的 DataFrame。
 
-        富途 get_rehab 返回字段（参考 SDK 文档）：
-          - time: 除权日
-          - forward_factor: 前复权因子（累乘值，富途直接提供）
-          - backward_factor: 后复权因子（累乘值）
-
-        如果富途 SDK 版本直接提供 forward_factor，则直接使用；
-        否则从 per_share_ratio（拆股比例）和 per_share_div（每股分红）手动计算。
+        富途前复权公式：adj_price = raw_price × forward_adj_factorA + forward_adj_factorB
+        - forward_adj_factorA：乘法系数，拆送股时 < 1.0，纯分红时 = 1.0
+        - forward_adj_factorB：加法偏移，现金分红时为负值（如 -1.0 HKD），无分红时 = 0.0
         """
         factors: List[AdjustFactor] = []
 
         for _, row in df.iterrows():
             try:
-                ex_date = str(row.get("time", row.get("ex_date", "")))[:10]
+                ex_date = str(row.get("ex_div_date", row.get("time", "")))[:10]
                 if not ex_date or ex_date == "nan":
                     continue
 
-                # 优先使用 SDK 直接返回的复权因子
-                if "forward_factor" in df.columns:
-                    fwd = float(row["forward_factor"])
-                    bwd = float(row.get("backward_factor", 1.0))
-                else:
-                    # 手动计算：factor = (close + dividend) / close * split_ratio
-                    # 富途 rehab 字段可能有 per_share_ratio, per_share_div 等
-                    # 此处简化为 1.0（需根据实际 SDK 字段调整）
-                    logger.warning(
-                        "forward_factor column not found in rehab data for %s, using 1.0",
-                        stock_code
-                    )
-                    fwd = 1.0
-                    bwd = 1.0
+                fwd_a = float(row["forward_adj_factorA"])
+                fwd_b = float(row["forward_adj_factorB"])
+                bwd_a = float(row["backward_adj_factorA"])
+                bwd_b = float(row["backward_adj_factorB"])
 
                 factors.append(AdjustFactor(
                     stock_code=stock_code,
                     ex_date=ex_date,
-                    forward_factor=fwd,
-                    backward_factor=bwd,
+                    forward_factor=fwd_a,
+                    forward_factor_b=fwd_b,
+                    backward_factor=bwd_a,
+                    backward_factor_b=bwd_b,
                     factor_source="futu",
                 ))
             except (KeyError, ValueError, TypeError) as e:
                 logger.warning("Failed to parse rehab row: %s, error: %s", dict(row), e)
 
-        # 按除权日升序排列
         factors.sort(key=lambda f: f.ex_date)
         return factors

@@ -11,13 +11,14 @@ class AdjustFactorRepository:
         """插入或更新复权因子。仅插入新事件，不修改历史。"""
         sql = """
             INSERT OR IGNORE INTO adjust_factors
-                (stock_code, ex_date, forward_factor, backward_factor, factor_source)
-            VALUES (?, ?, ?, ?, ?)
+                (stock_code, ex_date, forward_factor, forward_factor_b,
+                 backward_factor, backward_factor_b, factor_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         with DBConnection(self._db_path) as conn:
             conn.executemany(sql, [
-                (f.stock_code, f.ex_date, f.forward_factor,
-                 f.backward_factor, f.factor_source)
+                (f.stock_code, f.ex_date, f.forward_factor, f.forward_factor_b,
+                 f.backward_factor, f.backward_factor_b, f.factor_source)
                 for f in factors
             ])
 
@@ -35,7 +36,9 @@ class AdjustFactorRepository:
                 stock_code=row["stock_code"],
                 ex_date=row["ex_date"],
                 forward_factor=row["forward_factor"],
+                forward_factor_b=row["forward_factor_b"],
                 backward_factor=row["backward_factor"],
+                backward_factor_b=row["backward_factor_b"],
                 factor_source=row["factor_source"],
             )
             for row in rows
