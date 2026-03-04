@@ -126,6 +126,7 @@ class KlineFetcher:
                 raise RuntimeError(
                     f"get_history_kline failed after {max_retries} retries: {data}"
                 )
+        raise RuntimeError("unreachable")
 
     @staticmethod
     def _parse_dataframe(stock_code: str, period: str, df) -> List[KlineBar]:
@@ -142,10 +143,10 @@ class KlineFetcher:
                     low=float(row["low"]),
                     close=float(row["close"]),
                     volume=int(row["volume"]),
-                    turnover=float(row["turnover"]) if "turnover" in row and row["turnover"] else None,
-                    pe_ratio=float(row["pe_ratio"]) if "pe_ratio" in row and row["pe_ratio"] else None,
-                    turnover_rate=float(row["turnover_rate"]) if "turnover_rate" in row and row["turnover_rate"] else None,
-                    last_close=float(row["last_close"]) if "last_close" in row and row["last_close"] else None,
+                    turnover=float(row["turnover"]) if "turnover" in row and row["turnover"] is not None else None,
+                    pe_ratio=float(row["pe_ratio"]) if "pe_ratio" in row and row["pe_ratio"] is not None else None,
+                    turnover_rate=float(row["turnover_rate"]) if "turnover_rate" in row and row["turnover_rate"] is not None else None,
+                    last_close=float(row["last_close"]) if "last_close" in row and row["last_close"] is not None else None,
                 )
                 bars.append(bar)
             except (KeyError, ValueError, TypeError) as e:

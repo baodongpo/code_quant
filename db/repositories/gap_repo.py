@@ -6,16 +6,6 @@ class GapRepository:
     def __init__(self, db_path: str):
         self._db_path = db_path
 
-    def insert(self, stock_code: str, period: str, gap_start: str, gap_end: str) -> int:
-        """插入新的空洞记录，返回新行 ID。"""
-        sql = """
-            INSERT OR IGNORE INTO data_gaps (stock_code, period, gap_start, gap_end, status)
-            VALUES (?, ?, ?, ?, 'open')
-        """
-        with DBConnection(self._db_path) as conn:
-            cursor = conn.execute(sql, (stock_code, period, gap_start, gap_end))
-            return cursor.lastrowid
-
     def get_open_gaps(self, stock_code: str, period: str) -> List[dict]:
         sql = """
             SELECT * FROM data_gaps

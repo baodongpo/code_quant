@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Set, Tuple
 
 from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET
@@ -115,7 +115,9 @@ class SyncEngine:
         elif is_reactivated and meta.get("first_sync_date"):
             start_date = meta["first_sync_date"]
         elif meta.get("last_sync_date"):
-            start_date = meta["last_sync_date"]
+            last = meta["last_sync_date"]
+            y, m, d = last.split("-")
+            start_date = (date(int(y), int(m), int(d)) + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
             start_date = DEFAULT_HISTORY_START
 
