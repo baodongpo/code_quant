@@ -6,7 +6,7 @@ from config.settings import WATCHLIST_PATH
 from db.repositories.stock_repo import StockRepository
 from db.repositories.sync_meta_repo import SyncMetaRepository
 from models.stock import Stock
-from config.settings import ALL_PERIODS
+from config.settings import ALL_PERIODS, MAX_SUBSCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,14 @@ class WatchlistManager:
             "Watchlist loaded: %d active, %d newly_added, %d reactivated, %d deactivated",
             len(active_stocks), len(newly_added), len(reactivated), len(to_deactivate)
         )
+        # E2：订阅额度预警（活跃股票数 >= MAX_SUBSCRIPTIONS 的 80% 时提前告警）
+        if len(active_stocks) >= MAX_SUBSCRIPTIONS * 0.8:
+            logger.warning(
+                "Subscription quota warning: %d active stocks approaching limit "
+                "(threshold=%.0f, MAX_SUBSCRIPTIONS=%d). "
+                "Consider reducing watchlist or increasing MAX_SUBSCRIPTIONS.",
+                len(active_stocks), MAX_SUBSCRIPTIONS * 0.8, MAX_SUBSCRIPTIONS
+            )
         return active_stocks, newly_added, reactivated
 
     def _load_json(self) -> Optional[List[Stock]]:

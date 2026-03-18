@@ -28,9 +28,7 @@ class KlinePushHandler(CurKlineHandlerBase):
     """
     实时K线推送回调处理器。
     继承富途 SDK CurKlineHandlerBase，通过 ctx.set_handler() 注册到 OpenQuoteContext。
-
-    注意：当前系统以定时跑批模式运行，实时推送功能未激活。
-    此 handler 仅在将来升级为常驻进程 + 实时订阅模式时使用。
+    收到推送后将 K线数据 upsert 到 kline_data 表。
     """
 
     def __init__(
@@ -162,10 +160,43 @@ class SubscriptionManager:
 
     def sync_subscriptions(self, active_stocks: List[Stock]) -> None:
         """
-        取消所有已有订阅，释放富途订阅资源。
-        当前系统以定时跑批模式运行（日/周/月K），不需要实时推送，
-        主动取消全部订阅避免占用订阅额度。
-        若将来升级为常驻进程 + 分钟K实时模式，再恢复订阅逻辑。
+        将富途实时K线订阅与 active_stocks 对齐：
+        - 活跃股票的所有周期 → 订阅（已订阅则跳过，未订阅则调用 subscribe()）
+        - 已订阅但不在活跃列表中的 → 取消订阅
+        超出额度上限时，subscribe() 内部会输出 WARNING 并跳过，此处不中止。
         """
+        active_codes = {s.stock_code for s in active_stocks}
+        periods = list(_SUB_TYPE_MAP.keys())  # ["1D", "1W", "1M"]
+
+        # 1. 取消不再活跃的旧订阅
         for sub in self._sub_repo.get_all_subscribed():
-            self.unsubscribe(sub["stock_code"], sub["period"])
+            if sub["stock_code"] not in active_codes:
+                self.unsubscribe(sub["stock_code"], sub["period"])
+
+        # 2. 订阅活跃股票的所有周期（跳过已订阅的，避免重复调用 API）
+        already_subscribed = {
+            (sub["stock_code"], sub["period"])
+            for sub in self._sub_repo.get_all_subscribed()
+        }
+        subscribed_count = 0
+        skipped_count = 0
+        for stock in active_stocks:
+            for period in periods:
+                if (stock.stock_code, period) in already_subscribed:
+                    continue
+                if self.subscribe(stock.stock_code, period):
+                    subscribed_count += 1
+                else:
+                    skipped_count += 1
+
+        logger.info(
+            "sync_subscriptions done: %d newly subscribed, %d skipped (quota/error), "
+            "total active=%d",
+            subscribed_count, skipped_count, self._sub_repo.get_subscribed_count()
+        )
+        if skipped_count > 0:
+            logger.warning(
+                "%d subscription(s) skipped — check quota (MAX_SUBSCRIPTIONS=%d) "
+                "or subscribe() errors above",
+                skipped_count, self._max
+            )

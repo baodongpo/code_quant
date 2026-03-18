@@ -16,6 +16,17 @@ class GapRepository:
             rows = conn.execute(sql, (stock_code, period)).fetchall()
         return [dict(r) for r in rows]
 
+    def get_all_open_gaps(self) -> List[dict]:
+        """返回所有 open 状态的空洞（跨股票，供 stats 命令展示）。"""
+        sql = """
+            SELECT * FROM data_gaps
+            WHERE status = 'open'
+            ORDER BY stock_code, period, gap_start
+        """
+        with DBConnection(self._db_path) as conn:
+            rows = conn.execute(sql).fetchall()
+        return [dict(r) for r in rows]
+
     def mark_filling(self, gap_id: int) -> None:
         with DBConnection(self._db_path) as conn:
             conn.execute(

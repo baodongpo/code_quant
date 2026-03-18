@@ -25,8 +25,21 @@ class FutuClient:
     def disconnect(self) -> None:
         if self._ctx is not None:
             logger.info("Disconnecting from OpenD")
-            self._ctx.close()
+            try:
+                self._ctx.close()
+            except Exception as e:
+                logger.warning("Error closing OpenD context: %s", e)
             self._ctx = None
+
+    def reconnect(self) -> "FutuClient":
+        """断线后重新建立连接（先 disconnect 清理旧 ctx，再 connect）。"""
+        logger.info("Reconnecting to OpenD at %s:%d", self._host, self._port)
+        self.disconnect()
+        return self.connect()
+
+    @property
+    def is_connected(self) -> bool:
+        return self._ctx is not None
 
     @property
     def ctx(self) -> OpenQuoteContext:

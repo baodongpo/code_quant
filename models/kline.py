@@ -14,6 +14,8 @@ class KlineBar:
     volume: int            # 成交量（股，shares）
     turnover: Optional[float] = None    # 成交额
     pe_ratio: Optional[float] = None    # 市盈率（TTM，仅日K）
+    pb_ratio: Optional[float] = None    # 市净率（仅日K，周K/月K 为 NULL）
+    ps_ratio: Optional[float] = None    # 市销率（仅日K，周K/月K 为 NULL）
     turnover_rate: Optional[float] = None  # 换手率（%）
     last_close: Optional[float] = None  # 前收盘价（原始未复权）
     is_valid: bool = True

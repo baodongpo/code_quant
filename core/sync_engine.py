@@ -1,8 +1,9 @@
 import logging
+import math
 from datetime import date, timedelta
-from typing import List, Set, Tuple
+from typing import Callable, List, Optional, Set, Tuple
 
-from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET
+from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET, RATE_LIMIT_MIN_INTERVAL, RATE_LIMIT_MAX_IN_WINDOW, RATE_LIMIT_WINDOW_SECONDS
 from core.gap_detector import GapDetector
 from core.rate_limiter import GeneralRateLimiter
 from core.validator import KlineValidator
@@ -53,24 +54,66 @@ class SyncEngine:
         self._validator = validator
         self._general_rate_limiter = general_rate_limiter
 
+    def recover_running_states(self) -> List[str]:
+        """
+        启动恢复：将上次宕机时残留的 RUNNING 状态重置为 PENDING。
+        返回被重置的 (stock_code, period) 对应的 stock_code 列表（去重），
+        调用方应对这些股票强制执行空洞检测（等同 is_reactivated=True）。
+        """
+        running_records = self._sync_meta_repo.get_all_by_status(SyncStatus.RUNNING.value)
+        if not running_records:
+            return []
+        recovered_codes = []
+        for rec in running_records:
+            stock_code = rec["stock_code"]
+            period = rec["period"]
+            self._sync_meta_repo.set_status(stock_code, period, SyncStatus.PENDING.value)
+            logger.warning(
+                "Recovered dirty RUNNING state for %s [%s] → pending (crash recovery)",
+                stock_code, period
+            )
+            if stock_code not in recovered_codes:
+                recovered_codes.append(stock_code)
+        logger.info("Crash recovery: reset %d RUNNING records for %d stocks",
+                    len(running_records), len(recovered_codes))
+        return recovered_codes
+
     def run_full_sync(
         self,
         active_stocks: List[Stock],
         newly_added: List[Stock],
         reactivated: List[Stock],
+        shutdown_flag: Optional[Callable[[], bool]] = None,
     ) -> None:
         """
         对所有活跃股票执行同步。
         - newly_added: 强制全量历史拉取
         - reactivated: 从 first_sync_date 开始补洞
         - 其余: 增量同步（从上次成功同步日期开始）
+        - shutdown_flag: 可选回调，返回 True 时在股票边界优雅退出
         """
         newly_added_codes: Set[str] = {s.stock_code for s in newly_added}
         reactivated_codes: Set[str] = {s.stock_code for s in reactivated}
         today = date.today().strftime("%Y-%m-%d")
 
         total = len(active_stocks)
+        # E1：预估同步耗时（每只股票每个周期至少 1 次 API 调用，按 RATE_LIMIT_MIN_INTERVAL 估算）
+        num_periods = len(ALL_PERIODS)
+        estimated_seconds = total * num_periods * RATE_LIMIT_MIN_INTERVAL
+        estimated_minutes = math.ceil(estimated_seconds / 60)
+        logger.info(
+            "Starting sync: %d stocks × %d periods. "
+            "Estimated min time ~%d min (rate_limit=%.1fs/req, actual may vary).",
+            total, num_periods, estimated_minutes, RATE_LIMIT_MIN_INTERVAL
+        )
         for idx, stock in enumerate(active_stocks, 1):
+            # 检查 SIGTERM 优雅退出标志（在每只股票开始前检查）
+            if shutdown_flag is not None and shutdown_flag():
+                logger.warning(
+                    "Shutdown requested, stopping sync at stock %d/%d (%s)",
+                    idx, total, stock.stock_code
+                )
+                break
             force_full = stock.stock_code in newly_added_codes
             is_reactivated = stock.stock_code in reactivated_codes
             logger.info(

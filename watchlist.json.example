@@ -1,4 +1,15 @@
 {
+  "_comment": "复制此文件为 watchlist.json 并填入实际关注股票。watchlist.json 不提交仓库。",
+  "_quota_note": "建议活跃股票总数不超过 90 只（富途基础版订阅额度 100，保留 10 只安全余量）。超过 80% 时系统会输出 WARNING。",
+  "_fields": {
+    "market":   "市场分组（HK/US/A），A 股包含 SH/SZ",
+    "enabled":  "false 时该市场所有股票均不参与同步",
+    "stock_code": "股票代码，格式：市场前缀.代码（如 SH.600519）",
+    "asset_type": "资产类型（stock / etf / ...）",
+    "is_active": "false 时该只股票不参与同步（但保留历史数据）",
+    "lot_size":  "每手股数（A股通常100，美股通常1）",
+    "currency":  "计价货币（HKD / USD / CNY）"
+  },
   "markets": [
     {
       "market": "HK",

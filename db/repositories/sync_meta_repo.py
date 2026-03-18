@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from db.connection import DBConnection
 from models.enums import SyncStatus
 
@@ -70,6 +70,13 @@ class SyncMetaRepository:
         """
         with DBConnection(self._db_path) as conn:
             conn.execute(sql, (status, stock_code, period))
+
+    def get_all_by_status(self, status: str) -> List[dict]:
+        """返回所有符合指定 sync_status 的记录列表。"""
+        sql = "SELECT * FROM sync_metadata WHERE sync_status = ?"
+        with DBConnection(self._db_path) as conn:
+            rows = conn.execute(sql, (status,)).fetchall()
+        return [dict(row) for row in rows]
 
     def ensure_exists(self, stock_code: str, period: str) -> None:
         """确保记录存在（初始 pending 状态）。"""

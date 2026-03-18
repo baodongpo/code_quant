@@ -142,6 +142,8 @@ class KlineFetcher:
                     volume=int(row["volume"]),
                     turnover=float(row["turnover"]) if "turnover" in row and row["turnover"] is not None else None,
                     pe_ratio=float(row["pe_ratio"]) if "pe_ratio" in row and row["pe_ratio"] is not None else None,
+                    pb_ratio=float(row["pb_ratio"]) if "pb_ratio" in row and row["pb_ratio"] is not None else None,
+                    ps_ratio=float(row["ps_ratio"]) if "ps_ratio" in row and row["ps_ratio"] is not None else None,
                     turnover_rate=float(row["turnover_rate"]) if "turnover_rate" in row and row["turnover_rate"] is not None else None,
                     last_close=float(row["last_close"]) if "last_close" in row and row["last_close"] is not None else None,
                 )

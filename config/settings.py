@@ -55,3 +55,16 @@ ALL_PERIODS = [p.value for p in Period]
 # A股日历查询市场映射（A股用 SH 日历作为基准）
 # ============================================================
 A_STOCK_CALENDAR_MARKET = "SH"
+
+# ============================================================
+# 数据导出配置
+# ============================================================
+EXPORT_DIR = os.getenv("EXPORT_DIR", os.path.join(BASE_DIR, "exports"))
+
+# ============================================================
+# 服务化配置（模块C：常驻进程、断线重连、健康检查）
+# ============================================================
+RECONNECT_MAX_RETRIES = int(os.getenv("RECONNECT_MAX_RETRIES", "5"))
+RECONNECT_BASE_INTERVAL = int(os.getenv("RECONNECT_BASE_INTERVAL", "30"))
+HEALTH_CHECK_INTERVAL = int(os.getenv("HEALTH_CHECK_INTERVAL", "60"))
+HEALTH_FILE = os.getenv("HEALTH_FILE", os.path.join(BASE_DIR, "data", "health.json"))

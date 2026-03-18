@@ -5,13 +5,21 @@ AI 量化辅助决策系统 - 数据源子系统入口
 警告：本系统仅作数据采集，绝对禁止任何自动交易逻辑。
 """
 
+import argparse
+import json
 import logging
 import os
+import signal
 import sys
+import time
 from datetime import date
 from logging.handlers import TimedRotatingFileHandler
 
-from config.settings import DB_PATH, LOG_DIR, OPEND_HOST, OPEND_PORT
+from config.settings import (
+    DB_PATH, EXPORT_DIR, HEALTH_CHECK_INTERVAL, HEALTH_FILE,
+    LOG_DIR, OPEND_HOST, OPEND_PORT,
+    RECONNECT_BASE_INTERVAL, RECONNECT_MAX_RETRIES,
+)
 from core.adjustment_service import AdjustmentService
 from core.gap_detector import GapDetector
 from core.rate_limiter import RateLimiter, GeneralRateLimiter
@@ -31,6 +39,17 @@ from futu_wrap.calendar_fetcher import CalendarFetcher
 from futu_wrap.client import FutuClient
 from futu_wrap.kline_fetcher import KlineFetcher
 from futu_wrap.subscription_manager import SubscriptionManager
+
+# 全局优雅退出标志（SIGTERM 设置后，同步完当前 stock 后退出）
+_shutdown_requested = False
+
+
+def _handle_sigterm(signum, frame) -> None:
+    """SIGTERM 信号处理器：设置退出标志，等待当前同步任务完成后优雅退出。"""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger = logging.getLogger("main")
+    logger.warning("SIGTERM received, will exit after current sync task completes.")
 
 
 def setup_logging() -> None:
@@ -73,7 +92,7 @@ def build_dependencies(futu_client: FutuClient) -> dict:
 
     # 限频器
     kline_rate_limiter = RateLimiter()           # 历史K线：双约束（0.5s + 30s/25次）
-    general_rate_limiter = GeneralRateLimiter()  # 其他接口：30s/60次
+    general_rate_limiter = GeneralRateLimiter()  # 其他接口：30s/35次
 
     # Futu API（KlineFetcher 持有 rate_limiter，每页调用前控频）
     kline_fetcher = KlineFetcher(futu_client, kline_rate_limiter)
@@ -109,6 +128,7 @@ def build_dependencies(futu_client: FutuClient) -> dict:
     return {
         "stock_repo": stock_repo,
         "kline_repo": kline_repo,
+        "sync_meta_repo": sync_meta_repo,
         "adjustment_service": adjustment_service,
         "watchlist_manager": watchlist_manager,
         "subscription_manager": subscription_manager,
@@ -116,7 +136,96 @@ def build_dependencies(futu_client: FutuClient) -> dict:
     }
 
 
-def main() -> None:
+def write_health(status: str, detail: str = "") -> None:
+    """原子写入健康检查文件（先写 .tmp 再 os.replace，避免监控工具读到半写的 JSON）。"""
+    import time
+    payload = {
+        "status": status,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "detail": detail,
+    }
+    try:
+        health_dir = os.path.dirname(HEALTH_FILE)
+        os.makedirs(health_dir, exist_ok=True)
+        tmp_path = HEALTH_FILE + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp_path, HEALTH_FILE)
+    except OSError as e:
+        logging.getLogger("main").warning("Failed to write health file: %s", e)
+
+
+def _run_sync_once(
+    futu_client: FutuClient,
+    logger: logging.Logger,
+) -> bool:
+    """
+    执行一次完整的同步流程（连接已建立）。
+    返回 True 表示正常完成，返回 False 表示检测到断线需要重连。
+    抛出 KeyboardInterrupt / RuntimeError 等非连接异常由调用方处理。
+    """
+    deps = build_dependencies(futu_client)
+    watchlist_manager: WatchlistManager = deps["watchlist_manager"]
+    subscription_manager: SubscriptionManager = deps["subscription_manager"]
+    sync_engine: SyncEngine = deps["sync_engine"]
+
+    # 启动恢复：重置宕机残留的 RUNNING 状态（Module C）
+    recovered_codes = sync_engine.recover_running_states()
+
+    # 加载 watchlist，执行差异检测
+    logger.info("Loading watchlist...")
+    active_stocks, newly_added, reactivated = watchlist_manager.load()
+
+    # 将崩溃恢复的 stock 也并入 reactivated（触发空洞检测）
+    if recovered_codes:
+        recovered_set = set(recovered_codes)
+        extra_reactivated = [s for s in active_stocks
+                             if s.stock_code in recovered_set
+                             and s not in reactivated]
+        reactivated = reactivated + extra_reactivated
+        logger.info(
+            "Crash recovery: %d stocks added to reactivated for gap detection",
+            len(extra_reactivated)
+        )
+
+    # 注册实时推送 handler（必须在 sync_subscriptions 之前，确保订阅建立时 handler 已就绪）
+    subscription_manager.setup_push_handler()
+
+    # 同步订阅状态：活跃股票订阅，非活跃取消（Module B）
+    logger.info("Syncing subscriptions...")
+    subscription_manager.sync_subscriptions(active_stocks)
+
+    if not active_stocks:
+        logger.warning("No active stocks in watchlist. Nothing to sync.")
+        write_health("idle", "No active stocks")
+        return True
+
+    logger.info(
+        "Active stocks: %d, newly added: %d, reactivated: %d",
+        len(active_stocks), len(newly_added), len(reactivated)
+    )
+
+    write_health("running", f"Syncing {len(active_stocks)} stocks")
+
+    # 执行历史数据同步（全量/增量/空洞修复）
+    logger.info("Starting data sync...")
+    sync_engine.run_full_sync(
+        active_stocks, newly_added, reactivated,
+        shutdown_flag=lambda: _shutdown_requested,
+    )
+
+    if _shutdown_requested:
+        logger.warning("Sync interrupted by SIGTERM after completing current task.")
+        write_health("stopped", "Interrupted by SIGTERM")
+    else:
+        logger.info("Data sync completed")
+        write_health("ok", f"Sync completed for {len(active_stocks)} stocks")
+
+    return True
+
+
+def cmd_sync(_args) -> None:
+    """执行历史数据同步（默认子命令），含 OpenD 断线指数退避重连。"""
     setup_logging()
     logger = logging.getLogger("main")
     logger.info("=" * 60)
@@ -125,59 +234,221 @@ def main() -> None:
     logger.info("OpenD: %s:%d", OPEND_HOST, OPEND_PORT)
     logger.info("=" * 60)
 
-    # 1. 初始化数据库
+    # 注册 SIGTERM 处理器（systemd stop / kill 信号）
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
+    # 初始化数据库（只需一次）
     logger.info("Initializing database...")
     init_db(DB_PATH)
     logger.info("Database initialized at %s", DB_PATH)
 
-    # 2. 连接富途 OpenD
     futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
-    try:
-        futu_client.connect()
-    except Exception as e:
-        logger.error("Failed to connect to OpenD: %s", e)
-        logger.error(
-            "Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT
-        )
-        sys.exit(1)
+    retry_count = 0
 
     try:
-        deps = build_dependencies(futu_client)
-        watchlist_manager: WatchlistManager = deps["watchlist_manager"]
-        subscription_manager: SubscriptionManager = deps["subscription_manager"]
-        sync_engine: SyncEngine = deps["sync_engine"]
+        # 初始连接
+        try:
+            futu_client.connect()
+        except Exception as e:
+            logger.error("Failed to connect to OpenD: %s", e)
+            logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
+            write_health("error", f"OpenD connection failed: {e}")
+            sys.exit(1)
 
-        # 3. 加载 watchlist，执行差异检测
-        logger.info("Loading watchlist...")
-        active_stocks, newly_added, reactivated = watchlist_manager.load()
+        while not _shutdown_requested:
+            try:
+                _run_sync_once(futu_client, logger)
+                # 正常完成后退出循环（批处理模式：跑完即退）
+                break
 
-        # 4. 同步订阅状态（取消全部残留订阅，释放富途订阅资源）
-        logger.info("Clearing subscriptions...")
-        subscription_manager.sync_subscriptions(active_stocks)
+            except KeyboardInterrupt:
+                raise  # 向外层传递，统一处理
 
-        if not active_stocks:
-            logger.warning("No active stocks in watchlist. Nothing to sync.")
-            return
+            except Exception as e:
+                # 判断是否为断线类错误（连接失败时重连，其他错误直接退出）
+                err_str = str(e).lower()
+                is_conn_error = any(kw in err_str for kw in (
+                    "connect", "connection", "disconnect", "timeout",
+                    "opend", "network", "errno", "broken pipe",
+                ))
+                if not is_conn_error:
+                    logger.error("Non-connection error during sync: %s", e, exc_info=True)
+                    write_health("error", str(e))
+                    sys.exit(1)
 
-        logger.info(
-            "Active stocks: %d, newly added: %d, reactivated: %d",
-            len(active_stocks), len(newly_added), len(reactivated)
-        )
+                # 断线重连逻辑：指数退避（30s → 60s → 120s，最多 5 次）
+                retry_count += 1
+                if retry_count > RECONNECT_MAX_RETRIES:
+                    logger.error(
+                        "OpenD connection lost and max retries (%d) exceeded. Giving up.",
+                        RECONNECT_MAX_RETRIES
+                    )
+                    write_health("error", f"Max reconnect retries ({RECONNECT_MAX_RETRIES}) exceeded")
+                    sys.exit(1)
 
-        # 5. 执行历史数据同步（全量/增量/空洞修复）
-        logger.info("Starting data sync...")
-        sync_engine.run_full_sync(active_stocks, newly_added, reactivated)
-        logger.info("Data sync completed")
+                wait_seconds = RECONNECT_BASE_INTERVAL * (2 ** (retry_count - 1))
+                logger.warning(
+                    "OpenD connection error (attempt %d/%d): %s. "
+                    "Reconnecting in %ds...",
+                    retry_count, RECONNECT_MAX_RETRIES, e, wait_seconds
+                )
+                write_health("reconnecting", f"Reconnecting ({retry_count}/{RECONNECT_MAX_RETRIES}): {e}")
+
+                # 等待期间每秒检查一次 SIGTERM
+                for _ in range(wait_seconds):
+                    if _shutdown_requested:
+                        break
+                    time.sleep(1)
+                if _shutdown_requested:
+                    break
+
+                try:
+                    futu_client.reconnect()
+                    logger.info("Reconnected to OpenD (attempt %d)", retry_count)
+                    retry_count = 0  # 重连成功后重置计数器
+                except Exception as re:
+                    logger.error("Reconnect attempt %d failed: %s", retry_count, re)
+                    # 继续外层循环，下次迭代会再次判断是否超限
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
-    except Exception as e:
-        logger.error("Unexpected error: %s", e, exc_info=True)
-        sys.exit(1)
+        write_health("stopped", "Interrupted by user (KeyboardInterrupt)")
     finally:
         futu_client.disconnect()
         logger.info("Disconnected from OpenD")
         logger.info("AI Quant Data Subsystem stopped")
+
+
+def cmd_export(args) -> None:
+    """导出K线数据到文件（Parquet / CSV）。"""
+    setup_logging()
+    logger = logging.getLogger("main.export")
+    from export.exporter import export_klines
+    try:
+        output_path = export_klines(
+            stock_code=args.stock_code,
+            period=args.period,
+            start_date=args.start,
+            end_date=args.end,
+            adj_type=args.adj_type,
+            fmt=args.fmt,
+            output_dir=args.output_dir,
+            db_path=DB_PATH,
+        )
+        logger.info("Export successful: %s", output_path)
+        print(output_path)
+    except (ValueError, ImportError) as e:
+        logger.error("Export failed: %s", e)
+        sys.exit(1)
+
+
+def cmd_stats(_args) -> None:
+    """打印各股票同步状态汇总（E3）。"""
+    setup_logging()
+    logger = logging.getLogger("main.stats")
+    init_db(DB_PATH)
+
+    sync_meta_repo = SyncMetaRepository(DB_PATH)
+    stock_repo = StockRepository(DB_PATH)
+
+    from config.settings import ALL_PERIODS
+    from models.enums import SyncStatus
+
+    stocks = stock_repo.get_all()
+    active = [s for s in stocks if s.is_active]
+    inactive = [s for s in stocks if not s.is_active]
+
+    print(f"\n{'='*64}")
+    print(f"  AI Quant Data Subsystem — Sync Stats  (DB: {DB_PATH})")
+    print(f"{'='*64}")
+    print(f"  Active stocks  : {len(active)}")
+    print(f"  Inactive stocks: {len(inactive)}")
+    print(f"{'='*64}")
+
+    status_counts = {s.value: 0 for s in SyncStatus}
+    for stock in active:
+        for period in ALL_PERIODS:
+            meta = sync_meta_repo.get(stock.stock_code, period)
+            status = meta["sync_status"] if meta else "no_record"
+            if status in status_counts:
+                status_counts[status] += 1
+            else:
+                status_counts.setdefault(status, 0)
+                status_counts[status] += 1
+
+    print(f"\n  Sync status summary ({len(active)} stocks × {len(ALL_PERIODS)} periods):")
+    for status, count in sorted(status_counts.items()):
+        print(f"    {status:<12}: {count}")
+
+    # 列出 failed 记录（最多 20 条）
+    failed = sync_meta_repo.get_all_by_status(SyncStatus.FAILED.value)
+    if failed:
+        print(f"\n  ⚠  Failed records ({len(failed)}):")
+        for rec in failed[:20]:
+            print(f"    {rec['stock_code']:<16} [{rec['period']}]  {rec.get('error_message', '')[:60]}")
+        if len(failed) > 20:
+            print(f"    ... and {len(failed) - 20} more")
+
+    # 列出有 open gaps 的股票
+    gap_repo = GapRepository(DB_PATH)
+    open_gaps = gap_repo.get_all_open_gaps() if hasattr(gap_repo, "get_all_open_gaps") else []
+    if open_gaps:
+        print(f"\n  ⚠  Open data gaps ({len(open_gaps)}):")
+        for g in open_gaps[:20]:
+            print(f"    {g['stock_code']:<16} [{g['period']}]  {g['gap_start']}~{g['gap_end']}")
+        if len(open_gaps) > 20:
+            print(f"    ... and {len(open_gaps) - 20} more")
+
+    print(f"\n{'='*64}\n")
+    logger.info("Stats command completed")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="python main.py",
+        description="AI Quant Data Subsystem — 数据采集子系统（禁止交易逻辑）",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # 默认子命令：sync
+    sub_sync = subparsers.add_parser("sync", help="执行历史数据同步（默认）")
+    sub_sync.set_defaults(func=cmd_sync)
+
+    # 子命令：export
+    sub_export = subparsers.add_parser("export", help="导出K线数据到文件")
+    sub_export.add_argument("stock_code", help="股票代码，如 SH.600519")
+    sub_export.add_argument("period", choices=["1D", "1W", "1M"], help="K线周期")
+    sub_export.add_argument("start", metavar="START_DATE", help="起始日期 YYYY-MM-DD")
+    sub_export.add_argument("end", metavar="END_DATE", help="结束日期 YYYY-MM-DD")
+    sub_export.add_argument(
+        "--adj-type", dest="adj_type", choices=["qfq", "raw"], default="qfq",
+        help="复权类型（默认 qfq 前复权）",
+    )
+    sub_export.add_argument(
+        "--fmt", choices=["parquet", "csv"], default="parquet",
+        help="输出格式（默认 parquet）",
+    )
+    sub_export.add_argument(
+        "--output-dir", dest="output_dir", default=EXPORT_DIR,
+        help=f"输出目录（默认 {EXPORT_DIR}）",
+    )
+    sub_export.set_defaults(func=cmd_export)
+
+    # 子命令：stats
+    sub_stats = subparsers.add_parser("stats", help="打印同步状态汇总")
+    sub_stats.set_defaults(func=cmd_stats)
+
+    args = parser.parse_args()
+
+    # 默认无子命令时执行 sync
+    if args.command is None:
+        args.func = cmd_sync
+
+    if not hasattr(args, "func"):
+        parser.print_help()
+        sys.exit(0)
+
+    args.func(args)
 
 
 if __name__ == "__main__":

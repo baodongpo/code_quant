@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Quant Data Subsystem — 每日定时同步触发器（合并：A股+港股 17:30 北京时间）
+Requires=quant-sync.service
+
+[Timer]
+# 统一在 17:30 北京时间触发（A股/港股均已收盘）
+# TimeZone=Asia/Shanghai 显式声明时区，避免 systemd 服务器为 UTC 时差 8 小时
+OnCalendar=Mon-Fri 17:30:00
+TimeZone=Asia/Shanghai
+# 允许 ±5 分钟的随机延迟，避免多服务同时启动
+RandomizedDelaySec=300
+# 错过触发时（如机器关机）重启后立即补跑一次
+Persistent=true
+Unit=quant-sync.service
+
+[Install]
+WantedBy=timers.target

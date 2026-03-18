@@ -12,8 +12,8 @@ class KlineRepository:
         sql = """
             INSERT OR IGNORE INTO kline_data
                 (stock_code, period, trade_date, open, high, low, close,
-                 volume, turnover, pe_ratio, turnover_rate, last_close, is_valid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 volume, turnover, pe_ratio, pb_ratio, ps_ratio, turnover_rate, last_close, is_valid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         with DBConnection(self._db_path) as conn:
             before = conn.total_changes
@@ -25,9 +25,9 @@ class KlineRepository:
         sql = """
             INSERT INTO kline_data
                 (stock_code, period, trade_date, open, high, low, close,
-                 volume, turnover, pe_ratio, turnover_rate, last_close, is_valid,
+                 volume, turnover, pe_ratio, pb_ratio, ps_ratio, turnover_rate, last_close, is_valid,
                  updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(stock_code, period, trade_date) DO UPDATE SET
                 open          = excluded.open,
                 high          = excluded.high,
@@ -36,6 +36,8 @@ class KlineRepository:
                 volume        = excluded.volume,
                 turnover      = excluded.turnover,
                 pe_ratio      = excluded.pe_ratio,
+                pb_ratio      = excluded.pb_ratio,
+                ps_ratio      = excluded.ps_ratio,
                 turnover_rate = excluded.turnover_rate,
                 last_close    = excluded.last_close,
                 is_valid      = excluded.is_valid,
@@ -90,6 +92,7 @@ class KlineRepository:
             b.stock_code, b.period, b.trade_date,
             b.open, b.high, b.low, b.close,
             b.volume, b.turnover, b.pe_ratio,
+            b.pb_ratio, b.ps_ratio,
             b.turnover_rate, b.last_close,
             1 if b.is_valid else 0,
         )
@@ -107,6 +110,8 @@ class KlineRepository:
             volume=row["volume"],
             turnover=row["turnover"],
             pe_ratio=row["pe_ratio"],
+            pb_ratio=row["pb_ratio"] if "pb_ratio" in row.keys() else None,
+            ps_ratio=row["ps_ratio"] if "ps_ratio" in row.keys() else None,
             turnover_rate=row["turnover_rate"],
             last_close=row["last_close"],
             is_valid=bool(row["is_valid"]),

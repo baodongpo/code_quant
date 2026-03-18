@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS kline_data (
     volume          INTEGER NOT NULL,
     turnover        REAL,
     pe_ratio        REAL,
+    pb_ratio        REAL,
+    ps_ratio        REAL,
     turnover_rate   REAL,
     last_close      REAL,
     is_valid        INTEGER NOT NULL DEFAULT 1 CHECK(is_valid IN (0,1)),
@@ -180,6 +182,21 @@ def init_db(db_path: str) -> None:
                 )
             except sqlite3.OperationalError:
                 pass  # 并发 init_db 时已由其他进程添加，忽略
+
+        # 迁移：为旧版 kline_data 表补充 pb_ratio / ps_ratio 列（幂等）
+        kline_cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(kline_data)").fetchall()
+        }
+        for col, ddl in [
+            ("pb_ratio", "ALTER TABLE kline_data ADD COLUMN pb_ratio REAL"),
+            ("ps_ratio", "ALTER TABLE kline_data ADD COLUMN ps_ratio REAL"),
+        ]:
+            if col not in kline_cols:
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # 并发场景，已由其他进程添加
         conn.commit()
     finally:
         conn.close()

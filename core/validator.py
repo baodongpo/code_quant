@@ -46,6 +46,8 @@ class KlineValidator:
                     volume=bar.volume,
                     turnover=bar.turnover,
                     pe_ratio=bar.pe_ratio,
+                    pb_ratio=bar.pb_ratio,
+                    ps_ratio=bar.ps_ratio,
                     turnover_rate=bar.turnover_rate,
                     last_close=bar.last_close,
                     is_valid=False,
@@ -86,6 +88,12 @@ class KlineValidator:
         # 成交量检查
         if bar.volume < 0 or bar.volume > MAX_VOLUME:
             issues.append(f"volume={bar.volume} out of range [0, {MAX_VOLUME}]")
+
+        # PB/PS 合理性校验（仅日K 填充，周K/月K 为 NULL；若非 NULL 则必须 > 0）
+        if bar.pb_ratio is not None and bar.pb_ratio <= 0:
+            issues.append(f"pb_ratio={bar.pb_ratio} must be > 0")
+        if bar.ps_ratio is not None and bar.ps_ratio <= 0:
+            issues.append(f"ps_ratio={bar.ps_ratio} must be > 0")
 
         # 日期格式检查：验证 YYYY-MM-DD 可解析性，仅检查长度无法过滤 "2024-13-99" 等非法日期
         try:
