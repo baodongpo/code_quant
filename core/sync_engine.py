@@ -149,13 +149,13 @@ class SyncEngine:
         # 4. 刷新复权因子（使用通用限频器，仅追加新事件）
         self._refresh_adjust_factors(stock_code)
 
-        # 5. 修复已知空洞
-        self._heal_gaps(stock, period, start_date, today)
-
-        # 6. 拉取增量数据
+        # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
         rows_fetched, rows_inserted = self._fetch_and_store(
             stock, period, start_date, today
         )
+
+        # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
+        self._heal_gaps(stock, period, start_date, today)
 
         # 7. 更新同步状态
         self._sync_meta_repo.upsert(

@@ -39,7 +39,7 @@ config/settings.py   # 从 .env 读取配置，有合理默认值
 models/              # enums, Stock, KlineBar, AdjustFactor dataclass
 db/schema.py         # 所有 DDL，init_db() 建表
 db/repositories/     # 7个 repo（stocks/kline/calendar/sync_meta/gap/adjust_factor/subscription）
-futu/                # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
+futu_wrap/             # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
 core/                # RateLimiter, WatchlistManager, AdjustmentService, GapDetector, KlineValidator, SyncEngine
 docs/                # requirements.md（需求）, design.md（详细设计）
 watchlist.json       # 个人持仓列表（不提交仓库），从 watchlist.json.example 复制
@@ -109,5 +109,5 @@ tail -f logs/sync_$(date +%Y%m%d).log
 
 - **禁止**在代码中添加任何交易、下单、报价逻辑
 - `watchlist.json` 和 `.env` 是个人配置，已加入 `.gitignore`，不要提交
-- 富途 SDK `futu` 包与项目内 `futu/` 目录同名，import 时注意：项目内模块用相对路径，SDK 直接 `from futu import ...`
+- 富途 SDK `futu` 包与项目内 `futu_wrap/` 目录不同名，import 时注意：项目内模块用相对路径，SDK 直接 `from futu import ...`
 - 系统 Python 是 3.9，务必在 `env_quant`（Python 3.10）下运行

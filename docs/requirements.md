@@ -29,6 +29,7 @@
 
 - **K线粒度**：日K（1D）、周K（1W）、月K（1M）
 - **K线字段**：开盘价、最高价、最低价、收盘价、成交量（股）、成交额、换手率、市盈率（TTM，仅日K）、前收盘价
+- **复权类型字段**：`adjust_type`（"qfq" 前复权 / None 未复权），由调用层填充，不落库，仅存在于 `AdjustmentService` 返回的内存对象中
 - **复权数据**：存储原始未复权价格 + 独立复权因子表，算法层动态转换前复权
 - **交易日历**：各市场交易日，用于空洞检测基准
 
@@ -110,7 +111,7 @@
 
 ## 6. 验收标准
 
-1. `python -c "from db.schema import init_db; init_db('data/quant.db')"` 无报错，8张表正常创建
+1. `python -c "from db.schema import init_db; init_db('data/quant.db')"` 无报错，7张表正常创建
 2. 首次运行 `python main.py`，日志无 ERROR，`kline_data` 有数据写入
 3. `adjust_factors` 表有复权事件记录
 4. `AdjustmentService.get_adjusted_klines()` 返回的前复权价格与富途 App 一致

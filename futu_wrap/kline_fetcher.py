@@ -125,10 +125,16 @@ class KlineFetcher:
         bars = []
         for _, row in df.iterrows():
             try:
+                raw_date = str(row.get("time_key", row.get("date", "")))[:10]
+                if not raw_date:
+                    logger.warning(
+                        "Missing trade_date for bar in %s [%s]: neither 'time_key' nor 'date' found in row %s",
+                        stock_code, period, dict(row)
+                    )
                 bar = KlineBar(
                     stock_code=stock_code,
                     period=period,
-                    trade_date=str(row.get("time_key", row.get("date", "")))[:10],
+                    trade_date=raw_date,
                     open=float(row["open"]),
                     high=float(row["high"]),
                     low=float(row["low"]),

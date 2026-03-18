@@ -18,6 +18,7 @@ class KlineBar:
     last_close: Optional[float] = None  # 前收盘价（原始未复权）
     is_valid: bool = True
     is_adjusted: bool = False  # True 表示已经过复权计算
+    adjust_type: Optional[str] = None  # 复权类型："qfq"（前复权）/ None（未复权），不落库，调用层填充
 
 
 @dataclass

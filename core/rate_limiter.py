@@ -28,10 +28,8 @@ class RateLimiter:
     约束2：WINDOW_SECONDS 窗口内最多 MAX_IN_WINDOW 次请求（默认 30s/25次）
 
     注意：富途全局限制为任意 30s 内所有接口调用总次数不超过 60 次。
-    RateLimiter（K线，上限 25次）与 GeneralRateLimiter（其他接口，上限 60次）
-    各自独立计数，理论合计上限为 85次/30s，超出富途全局限制。
-    实际为单线程顺序调用，不会同时满负荷，但若 watchlist 较大时请适当
-    调低两者的 max_in_window 之和使其 ≤ 60。
+    RateLimiter（K线，默认上限 25次）与 GeneralRateLimiter（其他接口，默认上限 35次）
+    两者默认合计恰好 60次/30s，等于富途全局上限。如需调整，请确保两者之和 ≤ 60。
     """
 
     def __init__(
@@ -120,7 +118,7 @@ class GeneralRateLimiter:
     无最小间隔约束。
 
     注意：与 RateLimiter 共享富途全局配额，两者合计 max_in_window 建议 ≤ 60。
-    当前默认值：K线 25次 + 通用 60次 = 85次，实际单线程顺序执行不会同时打满，
+    当前默认值：K线 25次 + 通用 35次 = 60次，等于富途全局上限，不会超限。
     若出现富途全局限频错误，请在 .env 中降低 GENERAL_RATE_LIMIT_MAX_IN_WINDOW。
     """
 

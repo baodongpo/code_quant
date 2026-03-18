@@ -57,6 +57,14 @@ class CalendarFetcher:
                 )
 
             if data:
+                # request_trading_days 返回 list[dict]，每个 dict 含 "time" 键
+                # 部分旧版 SDK 可能返回 DataFrame；使用显式 TypeError 而非 assert，
+                # 避免 Python -O 优化模式下 assert 被跳过导致后续 TypeError 难以排查
+                if not isinstance(data, list):
+                    raise TypeError(
+                        f"Unexpected data type from request_trading_days: {type(data)}, "
+                        f"expected list[dict]"
+                    )
                 all_days.extend(item["time"][:10] for item in data)
 
             logger.debug(

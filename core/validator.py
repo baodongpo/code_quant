@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import List, Tuple
 
 from models.kline import KlineBar
@@ -86,8 +87,10 @@ class KlineValidator:
         if bar.volume < 0 or bar.volume > MAX_VOLUME:
             issues.append(f"volume={bar.volume} out of range [0, {MAX_VOLUME}]")
 
-        # 日期格式检查
-        if not bar.trade_date or len(bar.trade_date) != 10:
+        # 日期格式检查：验证 YYYY-MM-DD 可解析性，仅检查长度无法过滤 "2024-13-99" 等非法日期
+        try:
+            datetime.strptime(bar.trade_date, "%Y-%m-%d")
+        except (ValueError, TypeError):
             issues.append(f"invalid trade_date={bar.trade_date!r}")
 
         return issues

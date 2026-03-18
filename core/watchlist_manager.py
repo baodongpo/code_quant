@@ -41,6 +41,13 @@ class WatchlistManager:
             raise RuntimeError(
                 f"Failed to load watchlist from {self._watchlist_path}, aborting to protect DB state."
             )
+        # 空列表防护：若 JSON 解析成功但无任何股票，拒绝继续执行以避免误停用所有 DB 中的股票
+        if len(json_stocks) == 0:
+            raise RuntimeError(
+                f"Watchlist at {self._watchlist_path} contains no stocks. "
+                "Aborting to prevent deactivating all DB stocks. "
+                "Please check the file content."
+            )
         db_stocks = {s.stock_code: s for s in self._stock_repo.get_all()}
 
         newly_added: List[Stock] = []

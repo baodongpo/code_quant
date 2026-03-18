@@ -60,17 +60,21 @@ class AdjustmentService:
         # 2. 读取所有复权因子（按 ex_date 升序）
         factors = self._adjust_factor_repo.get_factors(stock_code)
         if not factors:
-            # 无复权事件，直接返回原始价格（标记为已调整，但值不变）
-            return [self._mark_adjusted(b) for b in raw_bars]
+            # 无复权事件，直接返回原始价格（标记为已调整，值不变，透传 adj_type）
+            return [self._mark_adjusted(b, adj_type) for b in raw_bars]
 
         # 3. 构建前复权系数映射
         # 对每个交易日 t，OHLC 使用 t 日系数；last_close 语义为 t-1 日收盘价，使用 t-1 日系数
+        # 注意：此处 prev_date 用日历前一天（-1 calendar day），而非严格意义的前一交易日。
+        # 在正常两交易日之间无除权事件时，两种做法结果相同；跨节假日时若节假日期间恰好有
+        # 除权事件（极罕见），复权系数可能有 1 天偏差，但 A/H/US 市场节假日期间不会发布
+        # 除权公告，因此在实践中此简化处理是安全的，无需引入额外的交易日历查询开销。
         adjusted_bars = []
         for bar in raw_bars:
             A, B = self._calc_forward_multiplier(bar.trade_date, factors)
             prev_date = (date.fromisoformat(bar.trade_date) - timedelta(days=1)).isoformat()
             A_prev, B_prev = self._calc_forward_multiplier(prev_date, factors)
-            adjusted_bars.append(self._apply_adjustment(bar, A, B, A_prev, B_prev))
+            adjusted_bars.append(self._apply_adjustment(bar, A, B, A_prev, B_prev, adj_type))
 
         logger.debug(
             "Adjusted %d bars for %s [%s] from %s to %s",
@@ -104,12 +108,13 @@ class AdjustmentService:
         return A, B
 
     @staticmethod
-    def _apply_adjustment(bar: KlineBar, A: float, B: float, A_prev: float, B_prev: float) -> KlineBar:
+    def _apply_adjustment(bar: KlineBar, A: float, B: float, A_prev: float, B_prev: float, adj_type: str) -> KlineBar:
         """
         将前复权系数应用到价格字段：adj = raw × A + B。
         - OHLC 使用当日系数 (A, B)
         - last_close 使用前一日系数 (A_prev, B_prev)，保证除权日 last_close == 前一日 close
         - volume 不调整
+        - adjust_type 透传给返回的 KlineBar，标记复权类型（不落库）
         """
         return KlineBar(
             stock_code=bar.stock_code,
@@ -126,10 +131,12 @@ class AdjustmentService:
             last_close=round(bar.last_close * A_prev + B_prev, 4) if bar.last_close is not None else None,
             is_valid=bar.is_valid,
             is_adjusted=True,
+            adjust_type=adj_type,
         )
 
     @staticmethod
-    def _mark_adjusted(bar: KlineBar) -> KlineBar:
+    def _mark_adjusted(bar: KlineBar, adj_type: str) -> KlineBar:
+        """原始价格无需复权时，仅标记 is_adjusted=True 并透传 adj_type，价格值不变。"""
         return KlineBar(
             stock_code=bar.stock_code,
             period=bar.period,
@@ -145,4 +152,5 @@ class AdjustmentService:
             last_close=bar.last_close,
             is_valid=bar.is_valid,
             is_adjusted=True,
+            adjust_type=adj_type,
         )
