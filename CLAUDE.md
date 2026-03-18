@@ -11,10 +11,15 @@
 
 ## 当前状态
 
-- 代码已完整实现，本地 git 有一个干净的 commit（尚未推送远端 GitHub）
-- 虚拟环境 `env_quant/` 尚未创建，依赖尚未安装
-- `.env` 和 `watchlist.json` 尚未从模板生成（首次运行前需要创建）
-- **下一步**：启动 OpenD，创建虚拟环境，安装依赖，运行联调
+- **迭代3已完成**（2026-03-18），HEAD commit `db55b31`，待打 tag `v0.3.0`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅
+- 虚拟环境 `env_quant/` 已创建（Python 3.10）
+- **下一步**：联调验证（需 OpenD 在线），然后规划迭代4（基本面数据/备用数据源）
+
+### 快速打 tag（需手动执行）
+```bash
+git tag -a v0.3.0 -m "迭代3：技术指标可视化 Web 服务"
+```
 
 ---
 
@@ -34,14 +39,24 @@
 ## 目录结构关键说明
 
 ```
-main.py              # 入口，组装所有依赖并启动同步
+main.py              # 入口，数据采集同步（python main.py sync）
 config/settings.py   # 从 .env 读取配置，有合理默认值
 models/              # enums, Stock, KlineBar, AdjustFactor dataclass
 db/schema.py         # 所有 DDL，init_db() 建表
 db/repositories/     # 7个 repo（stocks/kline/calendar/sync_meta/gap/adjust_factor/subscription）
-futu_wrap/             # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
+futu_wrap/           # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
 core/                # RateLimiter, WatchlistManager, AdjustmentService, GapDetector, KlineValidator, SyncEngine
-docs/                # requirements.md（需求）, design.md（详细设计）
+core/indicator_engine.py  # 【迭代3新增】7个技术指标计算 + 信号判断
+api/                 # 【迭代3新增】FastAPI 后端 REST API（只读）
+  main.py            # FastAPI app 入口（uvicorn api.main:app）
+  routes/            # stocks / kline / watchlist / indicators
+  services/          # kline_service（封装 AdjustmentService + IndicatorEngine）
+web/                 # 【迭代3新增】React 前端（Vite + ECharts）
+  src/components/    # MainChart, MACDPanel, RSIPanel, KDJPanel, BottomBar, SignalTag 等
+  src/pages/         # StockAnalysis（/）, WatchlistPage（/watchlist）
+export/              # 数据导出（Parquet/CSV）
+deploy/              # systemd 服务配置（quant-sync.service, quant-web.service）
+docs/                # PRD / 设计文档 / CR 报告
 watchlist.json       # 个人持仓列表（不提交仓库），从 watchlist.json.example 复制
 .env                 # 本地配置（不提交仓库），从 .env.example 复制
 ```
@@ -70,20 +85,28 @@ watchlist.json       # 个人持仓列表（不提交仓库），从 watchlist.j
 ```bash
 # 1. 启动富途 OpenD（打开富途牛牛客户端）
 
-# 2. 激活虚拟环境（首次需先创建）
-mamba create -p ./env_quant python=3.10 -y
+# 2. 激活虚拟环境
 mamba activate ./env_quant
-pip install -r requirements.txt
+pip install -r requirements.txt   # 含迭代3新增 fastapi uvicorn[standard]
 
 # 3. 生成本地配置（首次）
 cp .env.example .env
 cp watchlist.json.example watchlist.json
 # 编辑 watchlist.json，填入实际关注股票
 
-# 4. 运行
-python main.py
+# 4. 启动数据采集服务
+python main.py sync
 
-# 5. 查看日志
+# 5. 启动 Web 服务（迭代3新增）
+# 开发模式（前后端分离）：
+uvicorn api.main:app --reload --port 8000   # 后端
+cd web && npm install && npm run dev         # 前端 http://localhost:5173
+
+# 生产模式（单进程，后端 serve 前端）：
+cd web && npm run build
+WEB_MODE=production uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+# 6. 查看日志
 tail -f logs/sync_$(date +%Y%m%d).log
 ```
 
@@ -91,14 +114,19 @@ tail -f logs/sync_$(date +%Y%m%d).log
 
 ## 待办事项
 
+- [x] 迭代1：K线采集（已完成，tag v0.1.0）
+- [x] 迭代2：服务化 + 估值 + 导出（已完成，tag v0.2.0）
+- [x] 迭代3：技术指标可视化 Web 服务（已完成，commit db55b31，待打 tag v0.3.0）
+- [ ] 打 tag：`git tag -a v0.3.0 -m "迭代3：技术指标可视化 Web 服务"`
 - [ ] 联调验证（需 OpenD 在线）
   - [ ] `init_db()` 建表验证
-  - [ ] 首次全量同步（watchlist 三只股票）
-  - [ ] `adjust_factors` 有复权事件写入
-  - [ ] `AdjustmentService` 前复权结果与富途 App 对比
-  - [ ] 手动制造空洞，验证 `GapDetector` 检测与自动修复
-  - [ ] 验证实时订阅推送写入
-- [ ] 联调通过后推送远端 GitHub：
+  - [ ] 首次全量同步（watchlist 股票）
+  - [ ] Web 服务 `/api/stocks` 返回正确列表
+  - [ ] `/api/kline` 前复权结果与富途 App 对比
+  - [ ] 浏览器验收：K线图 + 指标面板 + 信号标签显示正确
+  - [ ] 24小时并行运行稳定性验证
+- [ ] 迭代4规划：基本面数据（ROE/PB/PS）、备用数据源、归档清理
+- [ ] 推送远端 GitHub：
   ```bash
   gh repo create code_quant --private --source=. --remote=origin --push
   ```
