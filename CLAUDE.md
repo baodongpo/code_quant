@@ -11,15 +11,10 @@
 
 ## 当前状态
 
-- **迭代3已完成**（2026-03-18），HEAD commit `db55b31`，待打 tag `v0.3.0`
+- **迭代3已完成 + 联调通过**（2026-03-18），HEAD commit `58dc2a8`，tag `v0.3.1`
 - 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅
-- 虚拟环境 `env_quant/` 已创建（Python 3.10）
-- **下一步**：联调验证（需 OpenD 在线），然后规划迭代4（基本面数据/备用数据源）
-
-### 快速打 tag（需手动执行）
-```bash
-git tag -a v0.3.0 -m "迭代3：技术指标可视化 Web 服务"
-```
+- 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
+- **下一步**：规划迭代4（基本面数据/备用数据源）
 
 ---
 
@@ -85,9 +80,8 @@ watchlist.json       # 个人持仓列表（不提交仓库），从 watchlist.j
 ```bash
 # 1. 启动富途 OpenD（打开富途牛牛客户端）
 
-# 2. 激活虚拟环境
-mamba activate ./env_quant
-pip install -r requirements.txt   # 含迭代3新增 fastapi uvicorn[standard]
+# 2. 安装依赖（显式使用虚拟环境，不依赖 activate）
+./env_quant/bin/pip install -r requirements.txt
 
 # 3. 生成本地配置（首次）
 cp .env.example .env
@@ -95,16 +89,16 @@ cp watchlist.json.example watchlist.json
 # 编辑 watchlist.json，填入实际关注股票
 
 # 4. 启动数据采集服务
-python main.py sync
+./env_quant/bin/python main.py sync
 
 # 5. 启动 Web 服务（迭代3新增）
 # 开发模式（前后端分离）：
-uvicorn api.main:app --reload --port 8000   # 后端
-cd web && npm install && npm run dev         # 前端 http://localhost:5173
+./env_quant/bin/uvicorn api.main:app --reload --port 8000   # 后端
+cd web && npm install && npm run dev                         # 前端 http://localhost:5173
 
 # 生产模式（单进程，后端 serve 前端）：
 cd web && npm run build
-WEB_MODE=production uvicorn api.main:app --host 0.0.0.0 --port 8000
+WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # 6. 查看日志
 tail -f logs/sync_$(date +%Y%m%d).log
@@ -116,20 +110,10 @@ tail -f logs/sync_$(date +%Y%m%d).log
 
 - [x] 迭代1：K线采集（已完成，tag v0.1.0）
 - [x] 迭代2：服务化 + 估值 + 导出（已完成，tag v0.2.0）
-- [x] 迭代3：技术指标可视化 Web 服务（已完成，commit db55b31，待打 tag v0.3.0）
-- [ ] 打 tag：`git tag -a v0.3.0 -m "迭代3：技术指标可视化 Web 服务"`
-- [ ] 联调验证（需 OpenD 在线）
-  - [ ] `init_db()` 建表验证
-  - [ ] 首次全量同步（watchlist 股票）
-  - [ ] Web 服务 `/api/stocks` 返回正确列表
-  - [ ] `/api/kline` 前复权结果与富途 App 对比
-  - [ ] 浏览器验收：K线图 + 指标面板 + 信号标签显示正确
-  - [ ] 24小时并行运行稳定性验证
+- [x] 迭代3：技术指标可视化 Web 服务（已完成，tag v0.3.0）
+- [x] 部署打包脚本（pack.sh / deploy.sh / start.sh / stop.sh / plist，tag v0.3.1）
+- [x] 联调验证（/api/health ✅ /api/stocks ✅ /api/watchlist/summary ✅ /docs ✅）
 - [ ] 迭代4规划：基本面数据（ROE/PB/PS）、备用数据源、归档清理
-- [ ] 推送远端 GitHub：
-  ```bash
-  gh repo create code_quant --private --source=. --remote=origin --push
-  ```
 
 ---
 
@@ -139,3 +123,7 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - `watchlist.json` 和 `.env` 是个人配置，已加入 `.gitignore`，不要提交
 - 富途 SDK `futu` 包与项目内 `futu_wrap/` 目录不同名，import 时注意：项目内模块用相对路径，SDK 直接 `from futu import ...`
 - 系统 Python 是 3.9，务必在 `env_quant`（Python 3.10）下运行
+- **【强制规则】所有 Python 依赖必须安装到虚拟环境 `env_quant/`，严禁装入系统 Python**
+  - 永远使用显式路径：`./env_quant/bin/pip install`、`./env_quant/bin/python`、`./env_quant/bin/uvicorn`
+  - 不依赖 `mamba activate` / `source activate` 的 shell 激活状态（CI、子 shell、Claude Code 执行环境均不保证继承激活状态）
+  - 凡是在 CLAUDE.md、脚本、文档中出现的 `pip`/`python`/`uvicorn` 裸命令，均应替换为 `./env_quant/bin/` 前缀版本
