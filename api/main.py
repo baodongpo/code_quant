@@ -10,6 +10,7 @@ api/main.py — FastAPI 应用入口
 """
 
 import os
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,6 +53,15 @@ app.include_router(stocks.router,     prefix="/api")
 app.include_router(kline.router,      prefix="/api")
 app.include_router(watchlist.router,  prefix="/api")
 app.include_router(indicators.router, prefix="/api")
+
+# ---------------------------------------------------------------------------
+# 健康检查（无需 DB，纯内存，供 start.sh / 监控使用）
+# ---------------------------------------------------------------------------
+
+@app.get("/api/health", tags=["system"])
+def health():
+    """服务健康检查，返回 ok 和当前时间戳。"""
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # ---------------------------------------------------------------------------
 # 生产模式：serve 前端构建产物
