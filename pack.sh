@@ -87,18 +87,26 @@ info "  排除：env_quant/ web/node_modules/ data/ logs/ .env watchlist.json .g
 tar -czf "${ARCHIVE_PATH}" \
     --exclude="./${PROJECT_NAME}/env_quant" \
     --exclude="./env_quant" \
+    --exclude="./${PROJECT_NAME}/web/node_modules" \
     --exclude="./web/node_modules" \
+    --exclude="./${PROJECT_NAME}/data" \
     --exclude="./data" \
+    --exclude="./${PROJECT_NAME}/logs" \
     --exclude="./logs" \
+    --exclude="./${PROJECT_NAME}/.env" \
     --exclude="./.env" \
+    --exclude="./${PROJECT_NAME}/watchlist.json" \
     --exclude="./watchlist.json" \
+    --exclude="./${PROJECT_NAME}/.git" \
     --exclude="./.git" \
+    --exclude="./${PROJECT_NAME}/__pycache__" \
     --exclude="./__pycache__" \
     --exclude="*/__pycache__" \
     --exclude="*.pyc" \
     --exclude="*.pyo" \
+    --exclude="./${PROJECT_NAME}/exports" \
     --exclude="./exports" \
-    --exclude="./dist" \
+    --exclude="./${PROJECT_NAME}/dist" \
     -C "${SCRIPT_DIR}/.." \
     "${PROJECT_NAME}"
 
