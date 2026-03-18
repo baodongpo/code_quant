@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-- **迭代3已完成 + 联调通过**（2026-03-18），HEAD commit `58dc2a8`，tag `v0.3.1`
+- **迭代3已完成 + 联调全部通过**（2026-03-18），HEAD commit `57a9c12`，tag `v0.3.1`
 - 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **下一步**：规划迭代4（基本面数据/备用数据源）
@@ -112,7 +112,7 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代2：服务化 + 估值 + 导出（已完成，tag v0.2.0）
 - [x] 迭代3：技术指标可视化 Web 服务（已完成，tag v0.3.0）
 - [x] 部署打包脚本（pack.sh / deploy.sh / start.sh / stop.sh / plist，tag v0.3.1）
-- [x] 联调验证（/api/health ✅ /api/stocks ✅ /api/watchlist/summary ✅ /docs ✅）
+- [x] 联调验证（/api/health ✅ /api/stocks ✅ /api/watchlist/summary ✅ /docs ✅ 浏览器 K线图+指标面板 ✅）
 - [ ] 迭代4规划：基本面数据（ROE/PB/PS）、备用数据源、归档清理
 
 ---
