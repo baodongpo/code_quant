@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.quant.web.plist — macOS launchd Web 服务配置
+  ============================================================
+  安装步骤（登录后自动启动）：
+    1. 复制或移动此文件：
+         cp ~/code_quant/deploy/com.quant.web.plist ~/Library/LaunchAgents/
+
+    2. 根据实际情况编辑以下字段：
+         - <key>WorkingDirectory</key> → 实际部署路径
+         - 日志文件路径
+
+    3. 加载服务：
+         launchctl load ~/Library/LaunchAgents/com.quant.web.plist
+
+  管理命令：
+    加载（开机生效）：launchctl load    ~/Library/LaunchAgents/com.quant.web.plist
+    卸载（取消自启）：launchctl unload  ~/Library/LaunchAgents/com.quant.web.plist
+    立即启动：        launchctl start   com.quant.web
+    立即停止：        launchctl stop    com.quant.web
+    查看状态：        launchctl list  | grep quant
+
+  注意：此文件使用 $HOME 占位符，实际部署时替换为真实路径，
+        或通过 sed 替换：
+          sed "s|/Users/YOUR_USER|$HOME|g" com.quant.web.plist > ~/Library/LaunchAgents/com.quant.web.plist
+  ============================================================
+-->
+<plist version="1.0">
+<dict>
+
+    <!-- 服务唯一标识 -->
+    <key>Label</key>
+    <string>com.quant.web</string>
+
+    <!-- 登录后自动启动 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 崩溃后自动重启 -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- 工作目录（修改为实际部署路径） -->
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USER/code_quant</string>
+
+    <!-- 启动命令 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USER/code_quant/env_quant/bin/uvicorn</string>
+        <string>api.main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>8000</string>
+        <string>--workers</string>
+        <string>1</string>
+        <string>--log-level</string>
+        <string>info</string>
+    </array>
+
+    <!-- 环境变量 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>WEB_MODE</key>
+        <string>production</string>
+        <key>WEB_PORT</key>
+        <string>8000</string>
+        <!-- 如需加载 .env 文件，推荐通过 start.sh 启动而非直接用 plist -->
+    </dict>
+
+    <!-- 日志输出（修改为实际路径） -->
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USER/code_quant/logs/web.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USER/code_quant/logs/web.err.log</string>
+
+    <!-- 节流：崩溃后最少等待 10 秒再重启 -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+</dict>
+</plist>

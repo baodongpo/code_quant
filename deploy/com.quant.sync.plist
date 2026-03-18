@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.quant.sync.plist — macOS launchd 数据同步服务配置
+  ============================================================
+  安装步骤（登录后自动启动）：
+    1. 复制或移动此文件：
+         cp ~/code_quant/deploy/com.quant.sync.plist ~/Library/LaunchAgents/
+
+    2. 根据实际情况编辑以下字段：
+         - <key>WorkingDirectory</key> → 实际部署路径
+         - 日志文件路径
+         - StartCalendarInterval（同步时间，默认 A股收盘后 15:30）
+
+    3. 加载服务：
+         launchctl load ~/Library/LaunchAgents/com.quant.sync.plist
+
+  管理命令：
+    加载（开机生效）：launchctl load    ~/Library/LaunchAgents/com.quant.sync.plist
+    卸载（取消自启）：launchctl unload  ~/Library/LaunchAgents/com.quant.sync.plist
+    立即触发同步：    launchctl start   com.quant.sync
+    查看状态：        launchctl list  | grep quant
+
+  同步时间说明（StartCalendarInterval）：
+    当前配置：周一至周五 15:30（A股收盘后）
+    如需多市场同步，可添加多个时间段（见注释示例）
+
+  注意：此文件使用 YOUR_USER 占位符，实际部署时替换为真实用户名，
+        或通过 sed 替换：
+          sed "s|YOUR_USER|$(whoami)|g" com.quant.sync.plist > ~/Library/LaunchAgents/com.quant.sync.plist
+  ============================================================
+-->
+<plist version="1.0">
+<dict>
+
+    <!-- 服务唯一标识 -->
+    <key>Label</key>
+    <string>com.quant.sync</string>
+
+    <!-- 登录后不立即运行，等待下一个计划时间 -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- 工作目录（修改为实际部署路径） -->
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USER/code_quant</string>
+
+    <!-- 启动命令：执行数据同步 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USER/code_quant/env_quant/bin/python</string>
+        <string>main.py</string>
+        <string>sync</string>
+    </array>
+
+    <!-- 环境变量 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- 确保能找到 .env 文件 -->
+        <key>PYTHONPATH</key>
+        <string>/Users/YOUR_USER/code_quant</string>
+    </dict>
+
+    <!--
+      计划时间（StartCalendarInterval）
+      ─────────────────────────────────
+      A股收盘后 15:30（周一至周五）
+      Weekday: 1=周一，2=周二，...，5=周五，0/7=周日
+
+      如需多时段同步（A股 + 港股 + 美股），可使用数组：
+      <key>StartCalendarInterval</key>
+      <array>
+          <dict>
+              <key>Hour</key><integer>15</integer>
+              <key>Minute</key><integer>30</integer>
+              <key>Weekday</key><integer>1</integer>
+          </dict>
+          ... （重复 5 次，周一到周五）
+      </array>
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <!-- 周一 15:30 -->
+        <dict>
+            <key>Hour</key><integer>15</integer>
+            <key>Minute</key><integer>30</integer>
+            <key>Weekday</key><integer>1</integer>
+        </dict>
+        <!-- 周二 15:30 -->
+        <dict>
+            <key>Hour</key><integer>15</integer>
+            <key>Minute</key><integer>30</integer>
+            <key>Weekday</key><integer>2</integer>
+        </dict>
+        <!-- 周三 15:30 -->
+        <dict>
+            <key>Hour</key><integer>15</integer>
+            <key>Minute</key><integer>30</integer>
+            <key>Weekday</key><integer>3</integer>
+        </dict>
+        <!-- 周四 15:30 -->
+        <dict>
+            <key>Hour</key><integer>15</integer>
+            <key>Minute</key><integer>30</integer>
+            <key>Weekday</key><integer>4</integer>
+        </dict>
+        <!-- 周五 15:30 -->
+        <dict>
+            <key>Hour</key><integer>15</integer>
+            <key>Minute</key><integer>30</integer>
+            <key>Weekday</key><integer>5</integer>
+        </dict>
+        <!-- 美股收盘后（东部时间 16:00 = 北京时间次日 05:00） -->
+        <!-- 如需同步美股，取消注释以下块：
+        <dict>
+            <key>Hour</key><integer>5</integer>
+            <key>Minute</key><integer>0</integer>
+            <key>Weekday</key><integer>2</integer>
+        </dict>
+        -->
+    </array>
+
+    <!-- 日志输出（修改为实际路径） -->
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USER/code_quant/logs/sync.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USER/code_quant/logs/sync.err.log</string>
+
+    <!-- 同步任务一次性执行，失败后不自动重试（避免重复写入） -->
+    <key>KeepAlive</key>
+    <false/>
+
+</dict>
+</plist>
