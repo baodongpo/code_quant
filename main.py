@@ -44,6 +44,22 @@ from futu_wrap.subscription_manager import SubscriptionManager
 _shutdown_requested = False
 
 
+def _is_connection_error(e: Exception) -> bool:
+    """
+    判断是否为 OpenD 连接类异常。
+
+    优先使用 isinstance 类型检测（B-1 修复：避免字符串匹配漏判）；
+    str 关键词匹配作为 fallback，应对富途 SDK 将连接错误包装为通用 Exception 的情况。
+    """
+    if isinstance(e, (ConnectionError, TimeoutError, OSError)):
+        return True
+    err_str = str(e).lower()
+    return any(kw in err_str for kw in (
+        "connect", "connection", "disconnect", "timeout",
+        "opend", "network", "errno", "broken pipe",
+    ))
+
+
 def _handle_sigterm(signum, frame) -> None:
     """SIGTERM 信号处理器：设置退出标志，等待当前同步任务完成后优雅退出。"""
     global _shutdown_requested
@@ -266,12 +282,7 @@ def cmd_sync(_args) -> None:
 
             except Exception as e:
                 # 判断是否为断线类错误（连接失败时重连，其他错误直接退出）
-                err_str = str(e).lower()
-                is_conn_error = any(kw in err_str for kw in (
-                    "connect", "connection", "disconnect", "timeout",
-                    "opend", "network", "errno", "broken pipe",
-                ))
-                if not is_conn_error:
+                if not _is_connection_error(e):
                     logger.error("Non-connection error during sync: %s", e, exc_info=True)
                     write_health("error", str(e))
                     sys.exit(1)

@@ -1,0 +1,40 @@
+[Unit]
+Description=AI Quant Web Service — K线可视化 Web 服务（迭代3）
+After=network.target
+# Web 服务为只读，不依赖 OpenD；但如果 OpenD 是 systemd 服务可在此声明软依赖
+# Wants=opend.service
+
+[Service]
+Type=simple
+# 修改为实际部署路径和用户
+User=YOUR_USER
+WorkingDirectory=/path/to/code_quant
+
+# 生产模式：serve 前端构建产物（web/dist/）
+# 启动前需先执行：cd web && npm install && npm run build
+ExecStart=/path/to/code_quant/env_quant/bin/uvicorn api.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 1 \
+    --log-level info
+
+# 环境变量
+Environment=WEB_MODE=production
+Environment=WEB_PORT=8000
+# CORS_ORIGINS 生产模式可留空（同源访问，无需 CORS）
+# Environment=CORS_ORIGINS=
+
+# 优雅退出
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# 崩溃自动重启（Web 服务不依赖外部状态，可快速重启）
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=quant-web
+
+[Install]
+WantedBy=multi-user.target
