@@ -804,6 +804,18 @@ ALERT_NIGHT_SILENCE=false
 
 ---
 
+### BUG-02：Watchlist 总览页表格内容未居中对齐
+
+**发现日期**：2026-03-19
+**优先级**：P2
+
+**问题描述**：
+Watchlist 总览页面（`/watchlist`）表格中，列标题（header）已水平居中，但每行的单元格内容未跟随居中，导致标题与内容对齐方式不一致。
+
+**修复范围**：`web/src/pages/WatchlistPage`（或对应表格组件）中表格 `<td>` 的 `text-align` 或 Tailwind/CSS 类，与 `<th>` 保持一致。
+
+---
+
 ### FEAT-01：指标图表新手解释浮层
 
 **发现日期**：2026-03-19
