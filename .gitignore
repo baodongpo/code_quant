@@ -20,3 +20,7 @@ futu_*.log
 watchlist.json
 # Claude Code 本地配置，不提交仓库
 .claude/
+# Web 前端构建产物与依赖（pack.sh 构建后打包，无需入库）
+web/node_modules/
+web/dist/
+web/package-lock.json
