@@ -20,6 +20,12 @@ from models.stock import Stock
 
 logger = logging.getLogger(__name__)
 
+# 各周期回溯天数（日历天，覆盖2个完整周期；1D 使用交易日历精确查询，不在此表中）
+_LOOKBACK_DAYS = {
+    "1W": 14,   # 覆盖2周
+    "1M": 65,   # 覆盖2个月
+}
+
 
 class SyncEngine:
     """
@@ -168,17 +174,31 @@ class SyncEngine:
         else:
             start_date = DEFAULT_HISTORY_START
 
+        # 强制回溯最近2个周期，确保最后几条数据被 upsert 覆盖
+        # 全量/重激活场景不做回溯（start_date 本来就是最早起点）
+        fetch_start = start_date
+        if not force_full and not is_reactivated:
+            rollback_start = self._calc_rollback_start(period, start_date, stock.market)
+            if rollback_start < start_date:
+                fetch_start = rollback_start
+                logger.info(
+                    "Sync %s [%s]: rollback_start=%s (extended from %s), fetch_range=%s~%s",
+                    stock_code, period, rollback_start, start_date, fetch_start, today
+                )
+        else:
+            rollback_start = start_date
+
         # 2a. 已是最新，跳过（1W/1M 末日推算可能超出今天）
-        if start_date > today:
+        if fetch_start > today:
             logger.info(
-                "Sync %s [%s]: start_date=%s > today=%s, already up-to-date, skipping",
-                stock_code, period, start_date, today
+                "Sync %s [%s]: fetch_start=%s > today=%s, already up-to-date, skipping",
+                stock_code, period, fetch_start, today
             )
             return
 
         logger.info(
-            "Sync %s [%s]: start_date=%s, end_date=%s",
-            stock_code, period, start_date, today
+            "Sync %s [%s]: fetch_start=%s, rollback_start=%s, end_date=%s",
+            stock_code, period, fetch_start, rollback_start, today
         )
 
         # 2. 标记运行中；force_full 时强制更新 first_sync_date
@@ -198,7 +218,8 @@ class SyncEngine:
 
         # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
         rows_fetched, rows_inserted = self._fetch_and_store(
-            stock, period, start_date, today, latest_date=today
+            stock, period, fetch_start, today,
+            latest_date=rollback_start if (not force_full and not is_reactivated) else today
         )
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
@@ -254,6 +275,28 @@ class SyncEngine:
             logger.warning(
                 "Failed to refresh adjust factors for %s: %s", stock_code, e
             )
+
+    def _calc_rollback_start(self, period: str, start_date: str, market: str) -> str:
+        """
+        计算回溯覆盖起始日（往前2个周期）。
+        1D：查交易日历，精确取前2个交易日；日历不足时退化为 start_date。
+        1W/1M：日历天近似（14天/65天）。
+        """
+        calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
+
+        if period == "1D":
+            # 往前查30日历天的交易日，取倒数第2个
+            query_start = (date.fromisoformat(start_date) - timedelta(days=30)).strftime("%Y-%m-%d")
+            trading_days = self._calendar_repo.get_trading_days(calendar_market, query_start, start_date)
+            if len(trading_days) >= 2:
+                return trading_days[-2]
+            return start_date  # 兜底：日历不足则不回溯
+        else:
+            days = _LOOKBACK_DAYS.get(period, 0)
+            if days == 0:
+                return start_date
+            rollback = date.fromisoformat(start_date) - timedelta(days=days)
+            return max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
 
     def _heal_gaps(
         self, stock: Stock, period: str, start_date: str, end_date: str
