@@ -145,8 +145,6 @@ if $READY; then
     echo "  访问地址：http://localhost:${WEB_PORT}"
     echo ""
     echo "  停止服务：bash $(dirname "${BASH_SOURCE[0]}")/stop.sh"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
 else
     warn "服务可能仍在启动中（10 秒内未响应 HTTP）"
     warn "请稍等片刻后手动检查："
@@ -154,6 +152,43 @@ else
     warn "  tail -f ${LOG_FILE}"
     echo ""
     echo "  PID：${WEB_PID}（服务进程仍在运行）"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
 fi
+
+# ─── 安装数据同步定时任务（仅 macOS） ────────────────────────
+echo ""
+echo "── 数据同步定时任务 ──────────────────────────────────────"
+SYNC_LABEL="com.quant.sync"
+LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
+SYNC_PLIST_SRC="${DEPLOY_DIR}/deploy/com.quant.sync.plist"
+SYNC_PLIST_DST="${LAUNCH_AGENTS_DIR}/${SYNC_LABEL}.plist"
+
+if [[ "$(uname)" != "Darwin" ]]; then
+    warn "非 macOS 系统，跳过 launchd 定时任务安装"
+    warn "Linux 用户请参考 deploy/README.md 使用 systemd timer"
+elif [[ ! -f "$SYNC_PLIST_SRC" ]]; then
+    warn "未找到 ${SYNC_PLIST_SRC}，跳过定时任务安装"
+else
+    mkdir -p "${LAUNCH_AGENTS_DIR}"
+
+    # 用实际路径替换占位符后写入 LaunchAgents
+    sed "s|/Users/YOUR_USER/code_quant|${DEPLOY_DIR}|g" \
+        "${SYNC_PLIST_SRC}" > "${SYNC_PLIST_DST}"
+
+    # 若已加载则先卸载（升级场景），忽略报错
+    launchctl unload "${SYNC_PLIST_DST}" 2>/dev/null || true
+
+    if launchctl load "${SYNC_PLIST_DST}" 2>/dev/null; then
+        success "数据同步定时任务已安装并加载（${SYNC_LABEL}）"
+        info  "  每个交易日 15:30 自动触发数据同步"
+        info  "  手动立即触发：launchctl start ${SYNC_LABEL}"
+        info  "  查看状态：    launchctl list | grep quant"
+        info  "  同步日志：    ${DEPLOY_DIR}/logs/sync.log"
+    else
+        warn "launchctl load 失败，请手动执行："
+        warn "  launchctl load ${SYNC_PLIST_DST}"
+    fi
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
