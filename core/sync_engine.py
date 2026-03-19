@@ -159,8 +159,12 @@ class SyncEngine:
             start_date = meta["first_sync_date"]
         elif meta.get("last_sync_date"):
             last = meta["last_sync_date"]
-            y, m, d = last.split("-")
-            start_date = (date(int(y), int(m), int(d)) + timedelta(days=1)).strftime("%Y-%m-%d")
+            if last >= today:
+                # 上次已同步到今天（含盘中半日），本次仍从今天开始，确保当日数据被 upsert 覆盖
+                start_date = today
+            else:
+                y, m, d = last.split("-")
+                start_date = (date(int(y), int(m), int(d)) + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
             start_date = DEFAULT_HISTORY_START
 

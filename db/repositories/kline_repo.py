@@ -27,7 +27,7 @@ class KlineRepository:
                 (stock_code, period, trade_date, open, high, low, close,
                  volume, turnover, pe_ratio, pb_ratio, ps_ratio, turnover_rate, last_close, is_valid,
                  updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
             ON CONFLICT(stock_code, period, trade_date) DO UPDATE SET
                 open          = excluded.open,
                 high          = excluded.high,
@@ -41,7 +41,7 @@ class KlineRepository:
                 turnover_rate = excluded.turnover_rate,
                 last_close    = excluded.last_close,
                 is_valid      = excluded.is_valid,
-                updated_at    = datetime('now')
+                updated_at    = datetime('now', '+8 hours')
         """
         with DBConnection(self._db_path) as conn:
             before = conn.total_changes

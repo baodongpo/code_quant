@@ -86,11 +86,12 @@ if [[ -f "$ENV_FILE" ]]; then
     info "已加载配置：${ENV_FILE}"
 fi
 
-# 端口优先级：命令行 WEB_PORT 环境变量 > .env 中的 WEB_PORT > 默认 8000
+# 端口/主机优先级：环境变量 > .env > 默认值
 WEB_PORT="${WEB_PORT:-8000}"
+WEB_HOST="${WEB_HOST:-127.0.0.1}"
 
 # ─── 启动 uvicorn ────────────────────────────────────────────
-info "启动 uvicorn（端口 ${WEB_PORT}，生产模式）..."
+info "启动 uvicorn（host=${WEB_HOST}，port=${WEB_PORT}，生产模式）..."
 info "日志输出：${LOG_FILE}"
 
 cd "$DEPLOY_DIR"
@@ -188,7 +189,7 @@ else
 
     if launchctl load "${SYNC_PLIST_DST}" 2>/dev/null; then
         success "数据同步定时任务已安装并加载（${SYNC_LABEL}）"
-        info  "  每个交易日 15:30 自动触发数据同步"
+        info  "  每个交易日 16:30 自动触发数据同步"
         info  "  手动立即触发：launchctl start ${SYNC_LABEL}"
         info  "  查看状态：    launchctl list | grep quant"
         info  "  同步日志：    ${DEPLOY_DIR}/logs/sync.log"
