@@ -78,14 +78,11 @@ fi
 # ─── 加载 .env 配置 ──────────────────────────────────────────
 ENV_FILE="${DEPLOY_DIR}/.env"
 if [[ -f "$ENV_FILE" ]]; then
-    while IFS='=' read -r key value; do
-        # 跳过注释行和空行
-        [[ "$key" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "$key" ]] && continue
-        # 仅导出全大写+下划线的合法变量名
-        [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
-        export "$key=$value"
-    done < "$ENV_FILE"
+    # 直接 source .env：bash 原生处理 # 注释和空行，比 grep 过滤更稳定
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
     info "已加载配置：${ENV_FILE}"
 fi
 

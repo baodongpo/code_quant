@@ -60,6 +60,9 @@ _403_HTML = """<!DOCTYPE html>
 </body></html>"""
 
 
+_COOKIE_NAME = "wat"  # web access token
+
+
 class TokenAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # 1. OPTIONS 预检直接放行（必须最优先，否则浏览器跨域失败）
@@ -72,10 +75,24 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         # 3. token 未配置时不启用鉴权
         if not WEB_ACCESS_TOKEN:
             return await call_next(request)
-        # 4. 校验 token（Header 优先，query 兜底）
-        token = request.headers.get("X-Access-Token") or request.query_params.get("token", "")
+        # 4. 校验 token（Header > query param > Cookie）
+        token = (
+            request.headers.get("X-Access-Token")
+            or request.query_params.get("token", "")
+            or request.cookies.get(_COOKIE_NAME, "")
+        )
         if token == WEB_ACCESS_TOKEN:
-            return await call_next(request)
+            response = await call_next(request)
+            # 首次通过 query/header 鉴权时写 Cookie，使浏览器后续静态资源请求无需再带 token
+            if _COOKIE_NAME not in request.cookies:
+                response.set_cookie(
+                    key=_COOKIE_NAME,
+                    value=WEB_ACCESS_TOKEN,
+                    httponly=True,
+                    samesite="lax",
+                    max_age=86400 * 7,  # 7天
+                )
+            return response
         # 5. 鉴权失败
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
