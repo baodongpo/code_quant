@@ -125,6 +125,8 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] 发现-01（附加）：has_calendar SQL 补 `AND is_trading_day = 1` 过滤 ✅
 - [ ] 迭代5（待规划）：
   - [ ] TODO-01：sync 重启时对最新交易日使用 `upsert_many`（覆盖写）而非 `insert_many`（跳过），修复进程中途退出导致当日半日K线永远不更新为全日数据的问题。涉及 `SyncEngine` 增量逻辑，需区分"历史日期"与"最新交易日"两种写入策略
+  - [ ] FEAT-02：K线图悬停浮层增加当日数据更新时间。即 `kline_data.updated_at` 字段（推送覆盖时更新），需后端 API 在 bars 中透传 `updated_at`，前端 MainChart tooltip 展示（格式如"数据更新：2026-03-19 16:32:05"）
+  - [ ] FEAT-03：首页股票下拉菜单按综合信号分组，多头（bullish）一组、空头（bearish）一组、中性（neutral）一组，使用 `<optgroup>` 实现，便于直观区分多空方向
 
 ---
 
