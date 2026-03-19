@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **迭代3已完成 + 联调全部通过**（2026-03-18），HEAD commit `57a9c12`，tag `v0.3.1`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅
+- **迭代5已完成 + 热修复已发布**（2026-03-19），最新 tag `v0.5.1-fix`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **下一步**：规划迭代4（基本面数据/备用数据源）
+- **下一步**：待规划迭代6
 
 ---
 
@@ -123,10 +123,17 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] FEAT-01：指标图表新手解释浮层（MACD/RSI/KDJ [?] 图标，默认隐藏，点击展开，不含买卖指令）✅
   - [x] deploy/start.sh 版本更新迁移支持：新增 `python main.py migrate` 子命令 ✅
   - [x] 发现-01（附加）：has_calendar SQL 补 `AND is_trading_day = 1` 过滤 ✅
-- [ ] 迭代5（待规划）：
-  - [ ] TODO-01：sync 重启时对最新交易日使用 `upsert_many`（覆盖写）而非 `insert_many`（跳过），修复进程中途退出导致当日半日K线永远不更新为全日数据的问题。涉及 `SyncEngine` 增量逻辑，需区分"历史日期"与"最新交易日"两种写入策略
-  - [ ] FEAT-02：K线图悬停浮层增加当日数据更新时间。即 `kline_data.updated_at` 字段（推送覆盖时更新），需后端 API 在 bars 中透传 `updated_at`，前端 MainChart tooltip 展示（格式如"数据更新：2026-03-19 16:32:05"）
-  - [ ] FEAT-03：首页股票下拉菜单按综合信号分组，多头（bullish）一组、空头（bearish）一组、中性（neutral）一组，使用 `<optgroup>` 实现，便于直观区分多空方向
+- [x] 迭代5（全部完成 2026-03-19，tag v0.5.0）：
+  - [x] TODO-01：sync 重启时对最新交易日使用 `upsert_many`（覆盖写）而非 `insert_many`（跳过），修复进程中途退出导致当日半日K线永远不更新为全日数据的问题。涉及 `SyncEngine` 增量逻辑，需区分"历史日期"与"最新交易日"两种写入策略 ✅
+  - [x] FEAT-02：K线图悬停浮层增加当日数据更新时间。即 `kline_data.updated_at` 字段（推送覆盖时更新），需后端 API 在 bars 中透传 `updated_at`，前端 MainChart tooltip 展示（格式如"数据更新：2026-03-19 16:32:05"）✅
+  - [x] FEAT-03：首页股票下拉菜单按综合信号分组，多头（bullish）一组、空头（bearish）一组、中性（neutral）一组，使用 `<optgroup>` 实现，便于直观区分多空方向 ✅
+  - [x] FEAT-04：局域网访问 + Token 鉴权。Web 服务绑定 `0.0.0.0` 对局域网开放（静态文件 + `/api/*` 同一进程）。在 `.env` 中配置固定 `WEB_ACCESS_TOKEN`，所有请求（页面 + API）均需鉴权，本机回环（`127.0.0.1`）豁免鉴权 ✅
+  - [x] BUG-ITER5-01：`kline_data.updated_at` 列缺少旧库迁移逻辑（`db/schema.py` `init_db()` 补列修复）✅
+  - [x] 热修复 v0.5.1-fix（2026-03-19）：
+    - sync `last_sync_date==today` 时 `start_date` 被推到 tomorrow 导致当日数据跳过（根本原因修复）✅
+    - `upsert_many` 中 `datetime('now')` 为 UTC，改为 `datetime('now', '+8 hours')` 修复 updated_at 时区问题 ✅
+    - `deploy/start.sh` 未显式赋值 `WEB_HOST` 导致旧版脚本写死 `127.0.0.1`，无法局域网访问 ✅
+- [ ] 迭代6（待规划）：
 
 ---
 
