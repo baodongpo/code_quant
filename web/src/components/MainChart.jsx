@@ -7,12 +7,23 @@
  *   - BOLL 三轨（上轨红虚线 / 中轨灰虚线 / 下轨绿虚线）
  *   - BOLL 上轨以上区域浅红背景，下轨以下区域浅绿背景
  *   - 成交量柱（涨红跌绿）+ MAVOL5 / MAVOL10 叠加线
+ *   - MACD 金叉/死叉买卖标记（圆形 symbolSize=12，买▲/卖▼）
  *   - 多子图 X 轴联动 + 十字线
+ *
+ * v3.5 变更：
+ *   - 高度 440 → 500px
+ *   - 移除 inside dataZoom（禁止滚轮缩放）
+ *   - 移除 ECharts 内置 legend（改由 ChartSidebar HTML 图例）
+ *   - 新增 MACD 金叉/死叉圆形 markPoint（symbolSize=12，17px加粗文字）
+ *   - 配色统一引用 colors.js
+ *   - 改为 forwardRef，暴露 ECharts 实例给 useChartSync
+ *   - 支持 showMarkers prop 控制标记点显示/隐藏
  */
-import React, { useMemo } from 'react'
+import React, { useMemo, forwardRef } from 'react'
 import ReactECharts from 'echarts-for-react'
+import { C } from '../utils/colors.js'
 
-export default function MainChart({ bars, indicators }) {
+const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers = true }, ref) {
   const option = useMemo(() => {
     if (!bars || bars.length === 0) return {}
 
@@ -23,7 +34,7 @@ export default function MainChart({ bars, indicators }) {
     // 涨跌颜色
     const volColors = bars.map((b, i) => {
       const prev = i > 0 ? bars[i - 1].close : b.open
-      return b.close >= prev ? '#ef5350' : '#26a69a'
+      return b.close >= prev ? C.candleUp : C.candleDown
     })
 
     const ma5  = indicators?.MA?.MA5  || []
@@ -37,15 +48,85 @@ export default function MainChart({ bars, indicators }) {
     const mavol5  = indicators?.MAVOL?.MAVOL5  || []
     const mavol10 = indicators?.MAVOL?.MAVOL10 || []
 
+    // ── MACD 金叉/死叉标记点 ──
+    const dif = indicators?.MACD?.dif || []
+    const dea = indicators?.MACD?.dea || []
+    const buyMarks  = []
+    const sellMarks = []
+
+    if (showMarkers) {
+      // 密度保护：同一根K线最多1个标记
+      const markedIdx = new Set()
+      for (let i = 1; i < dif.length; i++) {
+        if (dif[i] == null || dea[i] == null || dif[i-1] == null || dea[i-1] == null) continue
+        if (markedIdx.has(i)) continue
+        if (dif[i-1] <= dea[i-1] && dif[i] > dea[i]) {
+          // 金叉 → 买入标记（红圈）
+          const bar = candle[i]
+          if (bar) {
+            markedIdx.add(i)
+            buyMarks.push({
+              coord:  [dates[i], bar[2] * 0.998],  // K线最低价下方
+              symbol: 'circle',
+              symbolSize: 12,
+              itemStyle: { color: C.buyBg, borderColor: C.buy, borderWidth: 2 },
+              label: {
+                show:       true,
+                formatter:  '买▲',
+                color:      C.buyText,
+                fontSize:   17,
+                fontWeight: 700,
+                position:   'bottom',
+                distance:   2,
+              },
+              tooltip: {
+                formatter: `<b>📅 ${dates[i]}</b><br/>MACD 金叉信号（买入参考）<br/>DIF: ${dif[i]?.toFixed(4)}&nbsp;&nbsp;DEA: ${dea[i]?.toFixed(4)}<br/><small style="color:#8b949e">⚠️ 技术指标参考，非投资建议</small>`,
+              },
+            })
+          }
+        } else if (dif[i-1] >= dea[i-1] && dif[i] < dea[i]) {
+          // 死叉 → 卖出标记（绿圈）
+          const bar = candle[i]
+          if (bar) {
+            markedIdx.add(i)
+            sellMarks.push({
+              coord:  [dates[i], bar[3] * 1.002],  // K线最高价上方
+              symbol: 'circle',
+              symbolSize: 12,
+              itemStyle: { color: C.sellBg, borderColor: C.sell, borderWidth: 2 },
+              label: {
+                show:       true,
+                formatter:  '卖▼',
+                color:      C.sellText,
+                fontSize:   17,
+                fontWeight: 700,
+                position:   'top',
+                distance:   2,
+              },
+              tooltip: {
+                formatter: `<b>📅 ${dates[i]}</b><br/>MACD 死叉信号（卖出参考）<br/>DIF: ${dif[i]?.toFixed(4)}&nbsp;&nbsp;DEA: ${dea[i]?.toFixed(4)}<br/><small style="color:#8b949e">⚠️ 技术指标参考，非投资建议</small>`,
+              },
+            })
+          }
+        }
+      }
+    }
+
+    const zoomStart = Math.max(0, 100 - Math.round(120 / bars.length * 100))
+
     return {
-      backgroundColor: '#0d1117',
+      backgroundColor: C.chartBg,
       animation: false,
       tooltip: {
         trigger:    'axis',
-        axisPointer: { type: 'cross', crossStyle: { color: '#555' } },
-        backgroundColor: '#161b22',
-        borderColor:     '#30363d',
-        textStyle:       { color: '#e6edf3', fontSize: 12 },
+        axisPointer: {
+          type: 'cross',
+          crossStyle: { color: '#8b949e', width: 0.8, type: 'dashed' },
+          label: { backgroundColor: '#1c2128', color: C.text, fontSize: 10 },
+        },
+        backgroundColor: C.panelBg,
+        borderColor:     C.border2,
+        textStyle:       { color: C.text, fontSize: 11 },
         formatter(params) {
           if (!params || params.length === 0) return ''
           const idx = params[0].dataIndex
@@ -67,78 +148,74 @@ export default function MainChart({ bars, indicators }) {
           return lines.filter(Boolean).join('<br/>')
         },
       },
-      legend: {
-        data: ['MA5', 'MA20', 'MA60', 'BOLL上轨', 'BOLL中轨', 'BOLL下轨'],
-        top: 4, right: 12,
-        textStyle: { color: '#8b949e', fontSize: 11 },
-        itemWidth: 14, itemHeight: 2,
-      },
+      // 不使用 ECharts 内置 legend（改由 ChartSidebar HTML 图例）
       axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      // 仅保留 slider 底部滑动条，移除 inside（禁止滚轮缩放）
       dataZoom: [
-        {
-          type:       'inside',
-          xAxisIndex: [0, 1],
-          start:      Math.max(0, 100 - Math.round(120 / bars.length * 100)),
-          end:        100,
-        },
         {
           type:        'slider',
           xAxisIndex:  [0, 1],
           height:      18,
           bottom:      0,
-          borderColor: '#30363d',
-          fillerColor: 'rgba(56,139,253,0.15)',
-          handleStyle: { color: '#388bfd' },
-          textStyle:   { color: '#8b949e', fontSize: 10 },
+          borderColor: C.border2,
+          fillerColor: C.accentBg,
+          handleStyle: { color: C.accent },
+          textStyle:   { color: C.textMuted, fontSize: 10 },
+          start:       zoomStart,
+          end:         100,
         },
       ],
       grid: [
-        { left: 60, right: 16, top: 36,  height: '54%' },  // K线主图
-        { left: 60, right: 16, top: '68%', height: '18%' }, // 成交量
+        { left: 16, right: 16, top: 28,    height: '56%', containLabel: true },  // K线主图
+        { left: 16, right: 16, top: '74%', height: '16%', containLabel: true },  // 成交量
       ],
       xAxis: [
         {
           type: 'category', data: dates, gridIndex: 0,
-          axisLine:  { lineStyle: { color: '#30363d' } },
+          axisLine:  { lineStyle: { color: C.axisLine } },
           axisLabel: { show: false },
           axisTick:  { show: false },
           splitLine: { show: false },
         },
         {
           type: 'category', data: dates, gridIndex: 1,
-          axisLine:  { lineStyle: { color: '#30363d' } },
-          axisLabel: { color: '#8b949e', fontSize: 10 },
-          axisTick:  { lineStyle: { color: '#30363d' } },
+          axisLine:  { lineStyle: { color: C.axisLine } },
+          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisTick:  { lineStyle: { color: C.axisLine } },
           splitLine: { show: false },
         },
       ],
       yAxis: [
         {
           scale: true, gridIndex: 0,
-          splitLine: { lineStyle: { color: '#21262d', type: 'dashed' } },
-          axisLabel: { color: '#8b949e', fontSize: 10 },
-          axisLine:  { lineStyle: { color: '#30363d' } },
+          splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
+          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisLine:  { lineStyle: { color: C.axisLine } },
         },
         {
           scale: true, gridIndex: 1,
-          splitLine: { lineStyle: { color: '#21262d', type: 'dashed' } },
-          axisLabel: { color: '#8b949e', fontSize: 10 },
-          axisLine:  { lineStyle: { color: '#30363d' } },
+          splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
+          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisLine:  { lineStyle: { color: C.axisLine } },
           splitNumber: 2,
         },
       ],
       series: [
-        // K线蜡烛图
+        // K线蜡烛图（含买卖标记点）
         {
           name:        'K线',
           type:        'candlestick',
           data:        candle,
           xAxisIndex:  0, yAxisIndex: 0,
           itemStyle: {
-            color:        '#ef5350',
-            color0:       '#26a69a',
-            borderColor:  '#ef5350',
-            borderColor0: '#26a69a',
+            color:        C.candleUp,
+            color0:       C.candleDown,
+            borderColor:  C.candleUp,
+            borderColor0: C.candleDown,
+          },
+          markPoint: {
+            data: [...buyMarks, ...sellMarks],
+            animation: false,
           },
         },
         // MA 均线
@@ -146,47 +223,40 @@ export default function MainChart({ bars, indicators }) {
           name: 'MA5', type: 'line', data: ma5,
           xAxisIndex: 0, yAxisIndex: 0,
           smooth: false, symbol: 'none',
-          lineStyle: { color: '#f0c040', width: 1 },
+          lineStyle: { color: C.ma5, width: 1 },
         },
         {
           name: 'MA20', type: 'line', data: ma20,
           xAxisIndex: 0, yAxisIndex: 0,
           smooth: false, symbol: 'none',
-          lineStyle: { color: '#388bfd', width: 1 },
+          lineStyle: { color: C.ma20, width: 1 },
         },
         {
           name: 'MA60', type: 'line', data: ma60,
           xAxisIndex: 0, yAxisIndex: 0,
           smooth: false, symbol: 'none',
-          lineStyle: { color: '#ff9500', width: 1 },
+          lineStyle: { color: C.ma60, width: 1 },
         },
         // BOLL 三轨
         {
           name: 'BOLL上轨', type: 'line', data: bUpper,
           xAxisIndex: 0, yAxisIndex: 0,
           symbol: 'none', smooth: false,
-          lineStyle: { color: '#f85149', width: 1, type: 'dashed' },
-          // 上轨以上区域：areaStyle 用 stack 技巧，下面配合下轨一起做夹层
-          areaStyle: {
-            color: 'rgba(239,83,80,0.06)',
-            origin: 'end',   // 填充到 yAxis 上边界
-          },
+          lineStyle: { color: C.bollUpper, width: 1, type: 'dashed' },
+          areaStyle: { color: 'rgba(239,83,80,0.05)', origin: 'end' },
         },
         {
           name: 'BOLL中轨', type: 'line', data: bMid,
           xAxisIndex: 0, yAxisIndex: 0,
           symbol: 'none', smooth: false,
-          lineStyle: { color: '#8b949e', width: 1, type: 'dashed' },
+          lineStyle: { color: C.bollMid, width: 1, type: 'dashed' },
         },
         {
           name: 'BOLL下轨', type: 'line', data: bLower,
           xAxisIndex: 0, yAxisIndex: 0,
           symbol: 'none', smooth: false,
-          lineStyle: { color: '#3fb950', width: 1, type: 'dashed' },
-          areaStyle: {
-            color: 'rgba(63,185,80,0.06)',
-            origin: 'start',  // 填充到 yAxis 下边界
-          },
+          lineStyle: { color: C.bollLower, width: 1, type: 'dashed' },
+          areaStyle: { color: 'rgba(38,166,154,0.05)', origin: 'start' },
         },
         // 成交量柱
         {
@@ -194,7 +264,7 @@ export default function MainChart({ bars, indicators }) {
           type:       'bar',
           data:       vol.map((v, i) => ({
             value:     v,
-            itemStyle: { color: volColors[i] + '99' },  // 半透明
+            itemStyle: { color: volColors[i] + '99' },
           })),
           xAxisIndex: 1, yAxisIndex: 1,
           barMaxWidth: 6,
@@ -204,26 +274,29 @@ export default function MainChart({ bars, indicators }) {
           name: 'MAVOL5', type: 'line', data: mavol5,
           xAxisIndex: 1, yAxisIndex: 1,
           symbol: 'none',
-          lineStyle: { color: '#f0c040', width: 1 },
+          lineStyle: { color: C.ma5, width: 1 },
         },
         {
           name: 'MAVOL10', type: 'line', data: mavol10,
           xAxisIndex: 1, yAxisIndex: 1,
           symbol: 'none',
-          lineStyle: { color: '#388bfd', width: 1 },
+          lineStyle: { color: C.ma20, width: 1 },
         },
       ],
     }
-  }, [bars, indicators])
+  }, [bars, indicators, showMarkers])
 
   return (
-    <div style={{ background: '#0d1117', borderRadius: 8, padding: '8px 0' }}>
+    <div style={{ flex: 1, minWidth: 0, background: C.chartBg }}>
       <ReactECharts
+        ref={ref}
         option={option}
-        style={{ height: 440 }}
+        style={{ height: 500 }}
         notMerge={true}
         lazyUpdate={false}
       />
     </div>
   )
-}
+})
+
+export default MainChart

@@ -1,5 +1,9 @@
 /**
  * utils/signals.js — 信号判断辅助（前端展示用）
+ *
+ * v3.5 更新：
+ *  - 配色遵循红涨绿跌（买=红/卖=绿）
+ *  - 文案通俗化（展示具体数值，初学者友好）
  */
 
 /** 信号枚举值（与后端 SignalEnum 一致） */
@@ -11,31 +15,31 @@ export const SIGNALS = {
   VOLUME_LOW:  'volume_low',
 }
 
-/** 各指标信号的文字标签（对照 PRD §4.2） */
+/** 各指标信号的文字标签（通俗化，遵循红买绿卖） */
 export const SIGNAL_LABELS = {
   BOLL: {
-    bullish: '🟢 超卖·下轨突破',
-    bearish: '🔴 超买·上轨突破',
-    neutral: '⚖️ 轨道内',
+    bullish: '🔴 超卖·下轨突破',
+    bearish: '🟢 超买·上轨突破',
+    neutral: '⚖️ 轨道内运行',
   },
   MACD: {
-    bullish: '🟢 金叉·多头信号',
-    bearish: '🔴 死叉·空头信号',
-    neutral: '⚖️ 持平',
+    bullish: '🔴 MACD 金叉，上升动能增强',
+    bearish: '🟢 MACD 死叉，下行压力增大',
+    neutral: '⚖️ MACD 持平',
   },
   RSI: {
-    bullish: '🟢 超卖区间·关注反弹',
-    bearish: '🔴 超买区间·注意回调',
-    neutral: '⚖️ 中性区间',
+    bullish: '🔴 RSI 超卖，关注反弹机会',
+    bearish: '🟢 RSI 超买，短期或有回调',
+    neutral: '⚖️ RSI 中性，暂无明显信号',
   },
   KDJ: {
-    bullish: '🟢 金叉·超卖买入',
-    bearish: '🔴 死叉·超买卖出',
-    neutral: '⚖️ 中性',
+    bullish: '🔴 KDJ 金叉（低位），超卖反弹信号',
+    bearish: '🟢 KDJ 死叉（高位），超买回调信号',
+    neutral: '⚖️ KDJ 中性',
   },
   MA: {
-    bullish: '🟢 多头排列',
-    bearish: '🔴 空头排列',
+    bullish: '🔴 MA 多头排列',
+    bearish: '🟢 MA 空头排列',
     neutral: '⚖️ 均线纠缠',
   },
   MAVOL: {
@@ -44,16 +48,20 @@ export const SIGNAL_LABELS = {
     neutral:     '── 正常量能',
   },
   composite: {
-    bullish: '🟢 偏多',
-    bearish: '🔴 偏空',
+    bullish: '🔴 偏多',
+    bearish: '🟢 偏空',
     neutral: '⚖️ 中性',
   },
 }
 
-/** 信号对应的颜色 */
+/**
+ * 信号对应的颜色（红涨绿跌：买=红/卖=绿）
+ * bullish = 买入信号 = 红色系
+ * bearish = 卖出信号 = 绿色系
+ */
 export const SIGNAL_COLORS = {
-  bullish:     { bg: '#1a3a2a', border: '#2ea043', text: '#3fb950', badge: '#2ea043' },
-  bearish:     { bg: '#3a1a1a', border: '#f85149', text: '#ff7b72', badge: '#f85149' },
+  bullish:     { bg: '#3a1a1a', border: '#f85149', text: '#ff7b72', badge: '#f85149' },
+  bearish:     { bg: '#1a3a2a', border: '#2ea043', text: '#3fb950', badge: '#2ea043' },
   neutral:     { bg: '#1c2128', border: '#484f58', text: '#8b949e', badge: '#484f58' },
   volume_high: { bg: '#3a2e1a', border: '#d29922', text: '#e3b341', badge: '#d29922' },
   volume_low:  { bg: '#1c2128', border: '#484f58', text: '#8b949e', badge: '#484f58' },

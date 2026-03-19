@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 量化决策 · 视觉原型 v3.5</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; font-size: 13px; }
+
+  /* ── 顶部导航 ── */
+  .topbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 10px 20px; background: #161b22; border-bottom: 1px solid #21262d;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo { font-weight: 700; font-size: 15px; color: #e6edf3; white-space: nowrap; margin-right: 4px; }
+  .topbar select, .topbar button {
+    background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  .topbar select { min-width: 150px; }
+  .topbar button:hover { background: #1c2128; border-color: #58a6ff; }
+  .period-group { display: flex; gap: 4px; }
+  .period-group button { padding: 5px 10px; }
+  .period-group button.active { border-color: #388bfd; color: #79c0ff; background: #0d2137; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .watchlist-link {
+    font-size: 12px; color: #79c0ff; text-decoration: none;
+    border: 1px solid #30363d; border-radius: 6px; padding: 4px 10px;
+  }
+  .update-time { font-size: 11px; color: #8b949e; }
+
+  /* ── 综合信号横幅 ──
+     配色原则：看多（买入方向）= 红，看空（卖出方向）= 绿  ── */
+  .signal-banner {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    margin: 12px 20px 0; padding: 12px 20px;
+    border-radius: 10px; border: 1px solid; gap: 12px;
+  }
+  /* bullish = 看多 = 红色系 */
+  .signal-banner.bullish { background: #2a0d0d; border-color: #f85149; }
+  /* bearish = 看空 = 绿色系 */
+  .signal-banner.bearish { background: #0d2316; border-color: #2ea043; }
+  .signal-banner.neutral { background: #161b22; border-color: #484f58; }
+  .signal-banner-left { display: flex; align-items: center; gap: 14px; }
+  .signal-icon  { font-size: 30px; line-height: 1; }
+  .signal-title { font-size: 18px; font-weight: 700; }
+  .signal-title.bullish { color: #ff7b72; }   /* 看多 = 红 */
+  .signal-title.bearish { color: #3fb950; }   /* 看空 = 绿 */
+  .signal-title.neutral { color: #8b949e; }
+  .signal-desc  { font-size: 12px; color: #8b949e; margin-top: 3px; line-height: 1.6; }
+  .signal-votes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .vote-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; white-space: nowrap;
+  }
+  .vote-chip.bull { background: #3a1a1a; border: 1px solid #f85149; color: #ff7b72; }  /* 买=红 */
+  .vote-chip.bear { background: #1a3a2a; border: 1px solid #2ea043; color: #3fb950; }  /* 卖=绿 */
+  .vote-chip.neut { background: #1c2128; border: 1px solid #484f58; color: #8b949e; }
+  .signal-disclaimer {
+    font-size: 10px; color: #484f58; border-top: 1px solid #21262d;
+    padding-top: 8px; margin-top: 4px; width: 100%;
+  }
+
+  /* ── 图表区域 ── */
+  .charts-area { padding: 12px 20px; display: flex; flex-direction: column; gap: 0; }
+
+  /* ── 图表行（图表 + 说明侧边栏）── */
+  .chart-row {
+    display: flex; align-items: stretch; gap: 0;
+    border-radius: 10px; overflow: hidden;
+    background: #0d1117; margin-bottom: 10px;
+    border: 1px solid #21262d;
+  }
+  .chart-wrap { flex: 1; min-width: 0; }
+  .chart-sidebar {
+    width: 200px; min-width: 200px;
+    background: #161b22; border-left: 1px solid #21262d;
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .sidebar-title { font-size: 12px; font-weight: 700; color: #e6edf3; }
+  .sidebar-value { font-size: 22px; font-weight: 700; }
+  .sidebar-value.bull { color: #ff7b72; }   /* 看多 = 红 */
+  .sidebar-value.bear { color: #3fb950; }   /* 看空 = 绿 */
+  .sidebar-value.neut { color: #8b949e; }
+  .sidebar-signal-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    width: fit-content;
+  }
+  .sidebar-signal-tag.bull { background: #3a1a1a; border: 1px solid #f85149; color: #ff7b72; }
+  .sidebar-signal-tag.bear { background: #1a3a2a; border: 1px solid #2ea043; color: #3fb950; }
+  .sidebar-signal-tag.neut { background: #1c2128; border: 1px solid #484f58; color: #8b949e; }
+  .sidebar-divider { border: none; border-top: 1px solid #21262d; }
+  .sidebar-guide-title { font-size: 11px; font-weight: 600; color: #79c0ff; }
+  .sidebar-guide-item {
+    display: flex; align-items: flex-start; gap: 6px;
+    font-size: 11px; color: #8b949e; line-height: 1.5; padding: 3px 0;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .dot-bull { background: #ff7b72; }   /* 买 = 红 */
+  .dot-bear { background: #3fb950; }   /* 卖 = 绿 */
+  .dot-neut { background: #8b949e; }
+
+  /* ── 图例色块 ── */
+  .legend-row { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 6px 0 2px; }
+  .legend-item {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; color: #8b949e; white-space: nowrap;
+  }
+  .legend-line { width: 18px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+  .legend-bar  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── 副图折叠控制 ── */
+  .panel-toggle {
+    display: flex; gap: 8px; margin: 0 0 8px; flex-wrap: wrap; align-items: center;
+  }
+  .panel-toggle span { font-size: 11px; color: #484f58; line-height: 28px; }
+  .panel-toggle button {
+    background: #161b22; color: #8b949e; border: 1px solid #30363d;
+    border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+  }
+  .panel-toggle button.active { background: #0d2137; border-color: #388bfd; color: #79c0ff; }
+
+  /* ── 底部信息条 ── */
+  .bottom-bar {
+    margin: 0 20px 16px; padding: 12px 20px;
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  .bb-price  { font-size: 22px; font-weight: 700; color: #ef5350; }
+  .bb-change { font-size: 13px; color: #ef5350; font-weight: 600; }
+  .bb-divider { width: 1px; height: 28px; background: #30363d; }
+  .bb-item   { display: flex; flex-direction: column; gap: 2px; }
+  .bb-label  { font-size: 10px; color: #484f58; }
+  .bb-val    { font-size: 13px; color: #e6edf3; font-weight: 600; }
+  .bb-tag {
+    display: inline-flex; align-items: center;
+    padding: 3px 8px; border-radius: 10px; font-size: 11px; white-space: nowrap;
+  }
+  .bb-tag.bull { background: #3a1a1a; border: 1px solid #f85149; color: #ff7b72; }
+  .bb-tag.bear { background: #1a3a2a; border: 1px solid #2ea043; color: #3fb950; }
+  .bb-tag.neut { background: #1c2128; border: 1px solid #484f58; color: #8b949e; }
+
+  /* ── 页脚 ── */
+  .footer-disclaimer {
+    text-align: center; font-size: 10px; color: #484f58; padding: 8px 20px 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶部导航栏 -->
+<div class="topbar">
+  <span class="topbar-logo">📈 AI 量化决策</span>
+  <select>
+    <option>腾讯控股 (HK.00700)</option>
+    <option>阿里巴巴 (HK.09988)</option>
+    <option>茅台 (SH.600519)</option>
+    <option>苹果 (US.AAPL)</option>
+  </select>
+  <div class="period-group">
+    <button class="active">日K</button>
+    <button>周K</button>
+    <button>月K</button>
+  </div>
+  <div class="period-group">
+    <button>近3月</button>
+    <button class="active">近1年</button>
+    <button>近3年</button>
+  </div>
+  <div class="topbar-right">
+    <span class="update-time">更新: 15:32:08</span>
+    <a class="watchlist-link" href="#">Watchlist总览 →</a>
+  </div>
+</div>
+
+<!-- 综合信号横幅 -->
+<div class="signal-banner bullish">
+  <div class="signal-banner-left">
+    <div class="signal-icon">🔴</div>
+    <div>
+      <div class="signal-title bullish">综合偏多 · 可关注买入机会</div>
+      <div class="signal-desc">4项指标中 3项看多，技术面整体偏强，可结合基本面判断。</div>
+    </div>
+  </div>
+  <div class="signal-votes">
+    <span class="vote-chip bull">📈 MACD 金叉</span>
+    <span class="vote-chip bull">📉 RSI 超卖反弹</span>
+    <span class="vote-chip bull">🔀 KDJ 金叉</span>
+    <span class="vote-chip neut">⚖️ BOLL 中轨</span>
+  </div>
+  <div class="signal-disclaimer">⚠️ 以上为技术指标辅助参考，不构成任何投资建议。投资有风险，决策需谨慎。</div>
+</div>
+
+<!-- 图表区域 -->
+<div class="charts-area">
+
+  <!-- K线主图 -->
+  <div class="chart-row">
+    <div class="chart-wrap">
+      <div id="mainChart" style="height:500px;"></div>
+    </div>
+    <div class="chart-sidebar">
+      <div class="sidebar-title">📊 K线 · 均线 · 布林带</div>
+      <div>
+        <div class="bb-label" style="font-size:11px;color:#8b949e;">最新收盘</div>
+        <div class="sidebar-value bull">375.40</div>
+        <div style="font-size:11px;color:#ff7b72;margin-top:2px;">▲ +2.35%</div>
+      </div>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-line" style="background:#f0c040;"></span>MA5</span>
+        <span class="legend-item"><span class="legend-line" style="background:#388bfd;"></span>MA20</span>
+        <span class="legend-item"><span class="legend-line" style="background:#ff9500;"></span>MA60</span>
+        <span class="legend-item"><span class="legend-line" style="background:#f85149;height:0;border-top:2px dashed #f85149;"></span>BOLL上</span>
+        <span class="legend-item"><span class="legend-line" style="background:#8b949e;height:0;border-top:2px dashed #8b949e;"></span>BOLL中</span>
+        <span class="legend-item"><span class="legend-line" style="background:#26a69a;height:0;border-top:2px dashed #26a69a;"></span>BOLL下</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#3a1a1a;border:2px solid #f85149;border-radius:50%;"></span>买入参考</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#1a3a2a;border:2px solid #2ea043;border-radius:50%;"></span>卖出参考</span>
+      </div>
+      <hr class="sidebar-divider">
+      <div class="sidebar-guide-title">📖 如何看这张图</div>
+      <div class="sidebar-guide-item">
+        <span class="dot" style="background:#ef5350;"></span>
+        <span><b>红色蜡烛</b>=上涨，绿色=下跌</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot" style="background:#f0c040;"></span>
+        <span>价格站上 <b>MA均线</b> 为强势信号</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot" style="background:#8b949e;"></span>
+        <span><b>布林带</b>：触上轨留意回调，触下轨留意反弹</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-neut"></span>
+        <span>成交量放大配合涨价，信号更可信</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bull"></span>
+        <span><b>红圈●买入参考</b>：MACD金叉位置</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bear"></span>
+        <span><b>绿圈●卖出参考</b>：MACD死叉位置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 副图折叠控制 -->
+  <div class="panel-toggle">
+    <span>显示副图：</span>
+    <button class="active" onclick="togglePanel('macdRow',this)">MACD 趋势动能</button>
+    <button class="active" onclick="togglePanel('rsiRow',this)">RSI 超买超卖</button>
+    <button class="active" onclick="togglePanel('kdjRow',this)">KDJ 短线时机</button>
+  </div>
+
+  <!-- MACD 副图 -->
+  <div class="chart-row" id="macdRow">
+    <div class="chart-wrap">
+      <div id="macdChart" style="height:200px;"></div>
+    </div>
+    <div class="chart-sidebar">
+      <div class="sidebar-title">📶 MACD 趋势动能</div>
+      <span class="sidebar-signal-tag bull">🔴 金叉 · 多头信号</span>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-line" style="background:#79c0ff;"></span>DIF</span>
+        <span class="legend-item"><span class="legend-line" style="background:#f0c040;"></span>DEA</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#ef535088;"></span>柱(正)</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#26a69a88;"></span>柱(负)</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#f85149;border-radius:50%;width:8px;height:8px;"></span>金叉</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#3fb950;border-radius:50%;width:8px;height:8px;"></span>死叉</span>
+      </div>
+      <hr class="sidebar-divider">
+      <div class="sidebar-guide-title">📖 如何看 MACD</div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bull"></span>
+        <span><b>红圈●金叉</b>：DIF上穿DEA，动能转多，关注买入</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bear"></span>
+        <span><b>绿圈●死叉</b>：DIF下穿DEA，动能转弱，注意风险</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-neut"></span>
+        <span>柱由负转正且放大，趋势转强信号</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RSI 副图 -->
+  <div class="chart-row" id="rsiRow">
+    <div class="chart-wrap">
+      <div id="rsiChart" style="height:200px;"></div>
+    </div>
+    <div class="chart-sidebar">
+      <div class="sidebar-title">💪 RSI 超买超卖</div>
+      <span class="sidebar-signal-tag bull">🔴 超卖区 · 关注反弹</span>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-line" style="background:#79c0ff;"></span>RSI(14)</span>
+        <!-- 超买=卖出信号=绿区，超卖=买入信号=红区 -->
+        <span class="legend-item"><span class="legend-bar" style="background:#26a69a22;border:1px solid #26a69a;width:14px;height:10px;border-radius:2px;"></span>超买区(卖)</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#ef535022;border:1px solid #ef5350;width:14px;height:10px;border-radius:2px;"></span>超卖区(买)</span>
+      </div>
+      <hr class="sidebar-divider">
+      <div class="sidebar-guide-title">📖 如何看 RSI</div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bear"></span>
+        <span><b>RSI &gt; 70（绿色区域）</b>：超买，涨势过热，留意卖出</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bull"></span>
+        <span><b>RSI &lt; 30（红色区域）</b>：超卖，跌势过深，关注买入</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-neut"></span>
+        <span>30–70 中性区间，趋势延续，观望为主</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- KDJ 副图 -->
+  <div class="chart-row" id="kdjRow">
+    <div class="chart-wrap">
+      <div id="kdjChart" style="height:200px;"></div>
+    </div>
+    <div class="chart-sidebar">
+      <div class="sidebar-title">🔀 KDJ 短线时机</div>
+      <span class="sidebar-signal-tag bull">🔴 K/D 金叉 · 短多</span>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-line" style="background:#79c0ff;"></span>K线</span>
+        <span class="legend-item"><span class="legend-line" style="background:#f0c040;"></span>D线</span>
+        <span class="legend-item"><span class="legend-line" style="background:#bc8cff;height:0;border-top:2px dashed #bc8cff;"></span>J线</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#f85149;border-radius:50%;width:8px;height:8px;"></span>金叉</span>
+        <span class="legend-item"><span class="legend-bar" style="background:#3fb950;border-radius:50%;width:8px;height:8px;"></span>死叉</span>
+      </div>
+      <hr class="sidebar-divider">
+      <div class="sidebar-guide-title">📖 如何看 KDJ</div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bull"></span>
+        <span><b>红圈●金叉</b>：K从下穿D且低位，短线买入参考</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-bear"></span>
+        <span><b>绿圈●死叉</b>：K从上穿D且高位，短线卖出参考</span>
+      </div>
+      <div class="sidebar-guide-item">
+        <span class="dot dot-neut"></span>
+        <span>J线波动最大，可提前预警超买（&gt;80）超卖（&lt;20）</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /charts-area -->
+
+<!-- 底部信息条 -->
+<div class="bottom-bar">
+  <div>
+    <div class="bb-label">最新收盘价 (HKD)</div>
+    <div class="bb-price">375.40</div>
+  </div>
+  <div class="bb-change">▲ +8.60 (+2.35%)</div>
+  <div class="bb-divider"></div>
+  <div class="bb-item"><div class="bb-label">PE (TTM)</div><div class="bb-val">18.2</div></div>
+  <div class="bb-item"><div class="bb-label">PB</div><div class="bb-val">4.3</div></div>
+  <div class="bb-divider"></div>
+  <div class="bb-item">
+    <div class="bb-label">MACD</div>
+    <span class="bb-tag bull">🔴 金叉·多头</span>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">RSI (34.2)</div>
+    <span class="bb-tag bull">🔴 超卖·关注买入</span>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">KDJ</div>
+    <span class="bb-tag bull">🔴 金叉·短多</span>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">BOLL</div>
+    <span class="bb-tag neut">⚖️ 中轨附近</span>
+  </div>
+</div>
+
+<!-- 页脚 -->
+<div class="footer-disclaimer">
+  ⚠️ 本工具仅提供技术指标辅助分析，数据来源于市场行情，不构成任何投资建议。投资有风险，入市需谨慎。
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// 配色常量 —— 红涨绿跌原则
+//   BUY  = 买入信号 = 红色系
+//   SELL = 卖出信号 = 绿色系
+// ═══════════════════════════════════════════════
+const C = {
+  buy:        '#f85149',   // 买入标记主色（红）
+  buyBg:      '#3a1a1a',   // 买入标记背景
+  buyText:    '#ff7b72',   // 买入文字
+  sell:       '#2ea043',   // 卖出标记主色（绿）
+  sellBg:     '#1a3a2a',   // 卖出标记背景
+  sellText:   '#3fb950',   // 卖出文字
+  // 超买区（卖出信号）= 绿
+  overbought: 'rgba(38,166,154,0.10)',
+  overboughtLine: '#26a69a55',
+  // 超卖区（买入信号）= 红
+  oversold:   'rgba(239,83,80,0.10)',
+  oversoldLine: '#ef535055',
+}
+
+// ═══════════════════════════════════════════════
+// 模拟数据
+// ═══════════════════════════════════════════════
+function genMockData(n = 180) {
+  const dates = [], ohlcv = [], close = [], vol = []
+  let price = 320, d = new Date('2025-09-01')
+  for (let i = 0; i < n; i++) {
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
+    const o = +(price + (Math.random() - 0.5) * 4).toFixed(2)
+    const c = +(o + (Math.random() - 0.48) * 6).toFixed(2)
+    const h = +(Math.max(o, c) + Math.random() * 3).toFixed(2)
+    const l = +(Math.min(o, c) - Math.random() * 3).toFixed(2)
+    dates.push(d.toISOString().slice(0, 10))
+    ohlcv.push([o, c, l, h])
+    close.push(c)
+    vol.push(Math.round(10000000 + Math.random() * 30000000))
+    price = c
+    d = new Date(d); d.setDate(d.getDate() + 1)
+  }
+  return { dates, ohlcv, close, vol }
+}
+
+// ═══════════════════════════════════════════════
+// 指标计算
+// ═══════════════════════════════════════════════
+function calcMA(data, p) {
+  return data.map((_, i) => i < p - 1 ? null
+    : +(data.slice(i - p + 1, i + 1).reduce((a, b) => a + b, 0) / p).toFixed(2))
+}
+function calcBOLL(data, p = 20, k = 2) {
+  const mid = calcMA(data, p), upper = [], lower = []
+  data.forEach((_, i) => {
+    if (i < p - 1) { upper.push(null); lower.push(null); return }
+    const sl = data.slice(i - p + 1, i + 1), avg = mid[i]
+    const std = Math.sqrt(sl.reduce((s, v) => s + (v - avg) ** 2, 0) / p)
+    upper.push(+(avg + k * std).toFixed(2))
+    lower.push(+(avg - k * std).toFixed(2))
+  })
+  return { upper, mid, lower }
+}
+function calcEMA(data, p) {
+  const k = 2 / (p + 1); let prev = null
+  return data.map(v => {
+    if (v == null) return null
+    if (prev == null) { prev = v; return +v.toFixed(3) }
+    prev = +(v * k + prev * (1 - k)).toFixed(3); return prev
+  })
+}
+function calcMACD(close) {
+  const ema12 = calcEMA(close, 12), ema26 = calcEMA(close, 26)
+  const dif = close.map((_, i) => (ema12[i] != null && ema26[i] != null) ? +(ema12[i] - ema26[i]).toFixed(3) : null)
+  const dea = calcEMA(dif, 9)
+  const bar = dif.map((d, i) => (d != null && dea[i] != null) ? +((d - dea[i]) * 2).toFixed(3) : null)
+  return { dif, dea, bar }
+}
+function calcRSI(close, p = 14) {
+  const res = new Array(p).fill(null)
+  let avgGain = 0, avgLoss = 0
+  for (let i = 1; i <= p; i++) {
+    const diff = close[i] - close[i - 1]
+    if (diff > 0) avgGain += diff; else avgLoss -= diff
+  }
+  avgGain /= p; avgLoss /= p
+  res.push(avgLoss === 0 ? 100 : +(100 - 100 / (1 + avgGain / avgLoss)).toFixed(2))
+  for (let i = p + 1; i < close.length; i++) {
+    const diff = close[i] - close[i - 1]
+    avgGain = (avgGain * (p - 1) + Math.max(diff, 0)) / p
+    avgLoss = (avgLoss * (p - 1) + Math.max(-diff, 0)) / p
+    res.push(avgLoss === 0 ? 100 : +(100 - 100 / (1 + avgGain / avgLoss)).toFixed(2))
+  }
+  return res
+}
+function calcKDJ(ohlcv, p = 9) {
+  const K = [], D = [], J = []; let prevK = 50, prevD = 50
+  ohlcv.forEach((bar, i) => {
+    if (i < p - 1) { K.push(null); D.push(null); J.push(null); return }
+    const sl = ohlcv.slice(i - p + 1, i + 1)
+    const hi = Math.max(...sl.map(b => b[3])), lo = Math.min(...sl.map(b => b[2]))
+    const rsv = hi === lo ? 50 : +((bar[1] - lo) / (hi - lo) * 100).toFixed(2)
+    const k = +(prevK * 2 / 3 + rsv / 3).toFixed(2)
+    const d = +(prevD * 2 / 3 + k / 3).toFixed(2)
+    K.push(k); D.push(d); J.push(+(3 * k - 2 * d).toFixed(2))
+    prevK = k; prevD = d
+  })
+  return { K, D, J }
+}
+function findCross(fast, slow, dates) {
+  const golden = [], dead = []
+  for (let i = 1; i < fast.length; i++) {
+    if (fast[i] == null || slow[i] == null || fast[i-1] == null || slow[i-1] == null) continue
+    if (fast[i-1] <= slow[i-1] && fast[i] > slow[i])
+      golden.push({ idx: i, date: dates[i], val: fast[i] })
+    else if (fast[i-1] >= slow[i-1] && fast[i] < slow[i])
+      dead.push({ idx: i, date: dates[i], val: fast[i] })
+  }
+  return { golden, dead }
+}
+
+// ═══════════════════════════════════════════════
+// 公共配置
+// ═══════════════════════════════════════════════
+const TOOLTIP_BASE = {
+  trigger: 'axis',
+  axisPointer: {
+    type: 'cross',
+    crossStyle: { color: '#8b949e', width: 0.8, type: 'dashed' },
+    label: { backgroundColor: '#1c2128', color: '#e6edf3', fontSize: 10 }
+  },
+  backgroundColor: '#161b22', borderColor: '#30363d',
+  textStyle: { color: '#e6edf3', fontSize: 11 },
+}
+const YAXIS_BASE = {
+  splitLine: { lineStyle: { color: '#21262d', type: 'dashed' } },
+  axisLabel:  { color: '#8b949e', fontSize: 10 },
+  axisLine:   { lineStyle: { color: '#30363d' } },
+}
+const XAXIS_BASE = {
+  axisLine:  { lineStyle: { color: '#30363d' } },
+  axisLabel: { color: '#8b949e', fontSize: 10 },
+  axisTick:  { lineStyle: { color: '#30363d' } },
+  splitLine: { show: false },
+}
+
+// dataZoom: 仅滑动条，去掉鼠标滚轮（inside）
+let ZOOM_START = 0
+function sliderZoom(xAxisIndex) {
+  return [{
+    type: 'slider',
+    xAxisIndex,
+    height: 18, bottom: 2,
+    borderColor: '#30363d',
+    fillerColor: 'rgba(56,139,253,0.12)',
+    handleStyle: { color: '#388bfd' },
+    textStyle: { color: '#8b949e', fontSize: 10 },
+    start: ZOOM_START, end: 100,
+  }]
+}
+
+// ═══════════════════════════════════════════════
+// 主图
+// ═══════════════════════════════════════════════
+function initMainChart(data) {
+  const { dates, ohlcv, close, vol } = data
+  const ma5 = calcMA(close, 5), ma20 = calcMA(close, 20), ma60 = calcMA(close, 60)
+  const boll = calcBOLL(close)
+  const macd = calcMACD(close)
+  const { golden, dead } = findCross(macd.dif, macd.dea, dates)
+
+  ZOOM_START = Math.max(0, 100 - Math.round(120 / dates.length * 100))
+
+  // 买入参考（金叉）= 红圈，直径缩小至 12，文字 17px
+  const buyMarks = golden.slice(-10).map(p => {
+    const bar = ohlcv[p.idx]
+    return {
+      coord: [p.date, bar[2] * 0.998],
+      symbol: 'circle', symbolSize: 12,
+      itemStyle: { color: C.buyBg, borderColor: C.buy, borderWidth: 2 },
+      label: { show: true, formatter: '买▲', color: C.buyText, fontSize: 17, fontWeight: 700, position: 'bottom', distance: 2 }
+    }
+  })
+  // 卖出参考（死叉）= 绿圈，直径缩小至 12，文字 17px
+  const sellMarks = dead.slice(-10).map(p => {
+    const bar = ohlcv[p.idx]
+    return {
+      coord: [p.date, bar[3] * 1.002],
+      symbol: 'circle', symbolSize: 12,
+      itemStyle: { color: C.sellBg, borderColor: C.sell, borderWidth: 2 },
+      label: { show: true, formatter: '卖▼', color: C.sellText, fontSize: 17, fontWeight: 700, position: 'top', distance: 2 }
+    }
+  })
+
+  const volColors = ohlcv.map((b, i) =>
+    b[1] >= (i > 0 ? ohlcv[i-1][1] : b[0]) ? '#ef535088' : '#26a69a88')
+
+  const chart = echarts.init(document.getElementById('mainChart'))
+  chart.setOption({
+    backgroundColor: '#0d1117', animation: false,
+    tooltip: {
+      ...TOOLTIP_BASE,
+      formatter(params) {
+        if (!params?.length) return ''
+        const idx = params[0].dataIndex, b = ohlcv[idx]
+        if (!b) return ''
+        return `<b>${dates[idx]}</b><br/>开: ${b[0]}&nbsp;&nbsp;高: ${b[3]}<br/>低: ${b[2]}&nbsp;&nbsp;收: <b>${b[1]}</b><br/>量: ${(vol[idx]/10000).toFixed(0)}万手`
+      }
+    },
+    axisPointer: { link: [{ xAxisIndex: 'all' }] },
+    dataZoom: sliderZoom([0, 1]),
+    grid: [
+      { left: 64, right: 12, top: 28, height: '56%' },
+      { left: 64, right: 12, top: '72%', height: '16%' }
+    ],
+    xAxis: [
+      { type: 'category', data: dates, gridIndex: 0, ...XAXIS_BASE, axisLabel: { show: false }, axisTick: { show: false } },
+      { type: 'category', data: dates, gridIndex: 1, ...XAXIS_BASE }
+    ],
+    yAxis: [
+      { scale: true, gridIndex: 0, ...YAXIS_BASE },
+      { scale: true, gridIndex: 1, ...YAXIS_BASE, splitNumber: 2 }
+    ],
+    series: [
+      {
+        name: 'K线', type: 'candlestick', data: ohlcv, xAxisIndex: 0, yAxisIndex: 0,
+        itemStyle: { color: '#ef5350', color0: '#26a69a', borderColor: '#ef5350', borderColor0: '#26a69a' },
+        markPoint: { data: [...buyMarks, ...sellMarks] }
+      },
+      { name: 'MA5',  type: 'line', data: ma5,  xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#f0c040', width: 1 } },
+      { name: 'MA20', type: 'line', data: ma20, xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#388bfd', width: 1 } },
+      { name: 'MA60', type: 'line', data: ma60, xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#ff9500', width: 1 } },
+      { name: 'BOLL上', type: 'line', data: boll.upper, xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#f85149', width: 1, type: 'dashed' }, areaStyle: { color: 'rgba(239,83,80,0.05)', origin: 'end' } },
+      { name: 'BOLL中', type: 'line', data: boll.mid,   xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#8b949e', width: 1, type: 'dashed' } },
+      { name: 'BOLL下', type: 'line', data: boll.lower, xAxisIndex: 0, yAxisIndex: 0, symbol: 'none', lineStyle: { color: '#26a69a', width: 1, type: 'dashed' }, areaStyle: { color: 'rgba(38,166,154,0.05)', origin: 'start' } },
+      { name: '成交量', type: 'bar', data: vol.map((v, i) => ({ value: v, itemStyle: { color: volColors[i] } })), xAxisIndex: 1, yAxisIndex: 1, barMaxWidth: 6 },
+    ]
+  })
+  window.addEventListener('resize', () => chart.resize())
+  return chart
+}
+
+// ═══════════════════════════════════════════════
+// MACD 副图
+// ═══════════════════════════════════════════════
+function initMACDChart(data) {
+  const { dates, close } = data
+  const { dif, dea, bar } = calcMACD(close)
+  const { golden, dead } = findCross(dif, dea, dates)
+
+  // 金叉=买入=红圈；死叉=卖出=绿圈
+  const goldenMarks = golden.slice(-10).map(p => ({
+    coord: [p.date, p.val],
+    symbol: 'circle', symbolSize: 10,
+    itemStyle: { color: C.buy },
+    label: { show: true, formatter: '金叉', color: C.buyText, fontSize: 16, fontWeight: 700, position: 'bottom', distance: 4 }
+  }))
+  const deadMarks = dead.slice(-10).map(p => ({
+    coord: [p.date, p.val],
+    symbol: 'circle', symbolSize: 10,
+    itemStyle: { color: C.sell },
+    label: { show: true, formatter: '死叉', color: C.sellText, fontSize: 16, fontWeight: 700, position: 'top', distance: 4 }
+  }))
+
+  const chart = echarts.init(document.getElementById('macdChart'))
+  chart.setOption({
+    backgroundColor: '#0d1117', animation: false,
+    tooltip: { ...TOOLTIP_BASE },
+    dataZoom: sliderZoom(0),
+    grid: { left: 64, right: 12, top: 20, bottom: 28 },
+    xAxis: { type: 'category', data: dates, ...XAXIS_BASE },
+    yAxis: { scale: true, ...YAXIS_BASE },
+    series: [
+      { name: 'MACD柱', type: 'bar', data: bar.map(v => ({ value: v, itemStyle: { color: v == null ? 'transparent' : v >= 0 ? '#ef535088' : '#26a69a88' } })), barMaxWidth: 6 },
+      {
+        name: 'DIF', type: 'line', data: dif, symbol: 'none', lineStyle: { color: '#79c0ff', width: 1.5 },
+        markPoint: { data: [...goldenMarks, ...deadMarks] }
+      },
+      { name: 'DEA', type: 'line', data: dea, symbol: 'none', lineStyle: { color: '#f0c040', width: 1.5 } },
+    ]
+  })
+  window.addEventListener('resize', () => chart.resize())
+  return chart
+}
+
+// ═══════════════════════════════════════════════
+// RSI 副图
+// ═══════════════════════════════════════════════
+function initRSIChart(data) {
+  const { dates, close } = data
+  const rsi = calcRSI(close)
+
+  const chart = echarts.init(document.getElementById('rsiChart'))
+  chart.setOption({
+    backgroundColor: '#0d1117', animation: false,
+    tooltip: {
+      ...TOOLTIP_BASE,
+      formatter(params) {
+        if (!params?.length) return ''
+        const idx = params[0].dataIndex, v = rsi[idx]
+        const label = v == null ? '—'
+          : v > 70 ? `${v} 🟢超买（留意卖出）`
+          : v < 30 ? `${v} 🔴超卖（关注买入）`
+          : `${v} ⚖️中性`
+        return `<b>${dates[idx]}</b><br/>RSI(14): <b>${label}</b>`
+      }
+    },
+    dataZoom: sliderZoom(0),
+    grid: { left: 64, right: 12, top: 20, bottom: 28 },
+    xAxis: { type: 'category', data: dates, ...XAXIS_BASE },
+    yAxis: {
+      min: 0, max: 100, ...YAXIS_BASE,
+      axisLabel: {
+        color: '#8b949e', fontSize: 10,
+        formatter: v => v === 70 ? '超买70' : v === 30 ? '超卖30' : v
+      }
+    },
+    series: [{
+      name: 'RSI(14)', type: 'line', data: rsi, symbol: 'none',
+      lineStyle: { color: '#79c0ff', width: 1.5 },
+      markLine: {
+        silent: true, symbol: 'none', label: { show: false },
+        data: [
+          { yAxis: 70, lineStyle: { color: C.overboughtLine, width: 1, type: 'dashed' } },  // 超买线=绿
+          { yAxis: 30, lineStyle: { color: C.oversoldLine,   width: 1, type: 'dashed' } },  // 超卖线=红
+        ]
+      },
+      markArea: {
+        silent: true,
+        data: [
+          // 超买区（卖出信号）= 绿色底
+          [{ yAxis: 70, itemStyle: { color: C.overbought } }, { yAxis: 100 }],
+          // 超卖区（买入信号）= 红色底
+          [{ yAxis: 0,  itemStyle: { color: C.oversold   } }, { yAxis: 30  }],
+        ]
+      }
+    }]
+  })
+  window.addEventListener('resize', () => chart.resize())
+  return chart
+}
+
+// ═══════════════════════════════════════════════
+// KDJ 副图
+// ═══════════════════════════════════════════════
+function initKDJChart(data) {
+  const { dates, ohlcv } = data
+  const { K, D, J } = calcKDJ(ohlcv)
+  const { golden, dead } = findCross(K, D, dates)
+
+  // 金叉=买入=红圈；死叉=卖出=绿圈
+  const goldenMarks = golden.slice(-10).map(p => ({
+    coord: [p.date, p.val],
+    symbol: 'circle', symbolSize: 10,
+    itemStyle: { color: C.buy },
+    label: { show: true, formatter: '金叉', color: C.buyText, fontSize: 16, fontWeight: 700, position: 'bottom', distance: 4 }
+  }))
+  const deadMarks = dead.slice(-10).map(p => ({
+    coord: [p.date, p.val],
+    symbol: 'circle', symbolSize: 10,
+    itemStyle: { color: C.sell },
+    label: { show: true, formatter: '死叉', color: C.sellText, fontSize: 16, fontWeight: 700, position: 'top', distance: 4 }
+  }))
+
+  const chart = echarts.init(document.getElementById('kdjChart'))
+  chart.setOption({
+    backgroundColor: '#0d1117', animation: false,
+    tooltip: {
+      ...TOOLTIP_BASE,
+      formatter(params) {
+        if (!params?.length) return ''
+        const idx = params[0].dataIndex
+        return `<b>${dates[idx]}</b><br/>K: ${K[idx]??'—'}&nbsp;&nbsp;D: ${D[idx]??'—'}&nbsp;&nbsp;J: ${J[idx]??'—'}`
+      }
+    },
+    dataZoom: sliderZoom(0),
+    grid: { left: 64, right: 12, top: 20, bottom: 28 },
+    xAxis: { type: 'category', data: dates, ...XAXIS_BASE },
+    yAxis: { scale: true, ...YAXIS_BASE },
+    series: [
+      {
+        name: 'K', type: 'line', data: K, symbol: 'none', lineStyle: { color: '#79c0ff', width: 1.5 },
+        markPoint: { data: [...goldenMarks, ...deadMarks] }
+      },
+      { name: 'D', type: 'line', data: D, symbol: 'none', lineStyle: { color: '#f0c040', width: 1.5 } },
+      { name: 'J', type: 'line', data: J, symbol: 'none', lineStyle: { color: '#bc8cff', width: 1, type: 'dashed' } },
+      // 超买区（卖出）= 绿底；超卖区（买入）= 红底
+      { type: 'line', data: K, symbol: 'none', lineStyle: { opacity: 0 }, tooltip: { show: false },
+        markArea: { silent: true, data: [
+          [{ yAxis: 80,  itemStyle: { color: C.overbought } }, { yAxis: 120 }],
+          [{ yAxis: -20, itemStyle: { color: C.oversold   } }, { yAxis: 20  }],
+        ]}
+      }
+    ]
+  })
+  window.addEventListener('resize', () => chart.resize())
+  return chart
+}
+
+// ═══════════════════════════════════════════════
+// 跨图联动（十字线 + dataZoom 同步）
+//
+// 为什么不用 echarts.connect()：
+//   主图内有两个 grid（K线区 xAxisIndex:0 + 成交量区 xAxisIndex:1），
+//   echarts.connect() 只广播 xAxisIndex:0 的事件，鼠标在成交量柱上悬停时
+//   无法触发副图联动。
+//   改用 updateAxisPointer 事件手动派发，两个区域都能正确拿到 dataIndex。
+// ═══════════════════════════════════════════════
+function connectAllCharts(charts) {
+  const [main, macd, rsi, kdj] = charts
+  const subs = [macd, rsi, kdj]
+
+  // 主图轴指针更新时 → 同步到所有副图
+  main.on('updateAxisPointer', function(event) {
+    // axesInfo 包含主图内所有联动轴的信息（xAxisIndex 0 和 1 都在此）
+    const xInfo = event.axesInfo?.find(a => a.axisDim === 'x')
+    if (xInfo == null) return
+    const dataIndex = xInfo.value   // category 轴 value 即 dataIndex
+    if (dataIndex == null) return
+    subs.forEach(c => c.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex }))
+  })
+
+  // 鼠标离开主图 → 隐藏所有副图 tooltip
+  main.getDom().addEventListener('mouseleave', () => {
+    subs.forEach(c => c.dispatchAction({ type: 'hideTip' }))
+  })
+
+  // 主图 dataZoom → 同步副图缩放范围
+  main.on('dataZoom', () => {
+    const zoom = main.getOption()?.dataZoom?.[0]
+    if (!zoom) return
+    subs.forEach(c => c.dispatchAction({ type: 'dataZoom', start: zoom.start, end: zoom.end }))
+  })
+}
+
+// ═══════════════════════════════════════════════
+// 副图折叠
+// ═══════════════════════════════════════════════
+function togglePanel(rowId, btn) {
+  const row = document.getElementById(rowId)
+  const hidden = row.style.display === 'none'
+  row.style.display = hidden ? 'flex' : 'none'
+  btn.classList.toggle('active', hidden)
+  if (hidden) {
+    const chartId = rowId.replace('Row', 'Chart')
+    setTimeout(() => echarts.getInstanceByDom(document.getElementById(chartId))?.resize(), 50)
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 周期按钮 UI
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.period-group').forEach(grp => {
+  grp.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      grp.querySelectorAll('button').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+    })
+  })
+})
+
+// ═══════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════
+const mockData = genMockData(180)
+const chartMain = initMainChart(mockData)
+const chartMACD = initMACDChart(mockData)
+const chartRSI  = initRSIChart(mockData)
+const chartKDJ  = initKDJChart(mockData)
+connectAllCharts([chartMain, chartMACD, chartRSI, chartKDJ])
+</script>
+</body>
+</html>
