@@ -98,7 +98,7 @@ cd web && npm install && npm run dev                         # 前端 http://loc
 
 # 生产模式（单进程，后端 serve 前端）：
 cd web && npm run build
-WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 # 6. 查看日志
 tail -f logs/sync_$(date +%Y%m%d).log

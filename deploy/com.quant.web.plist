@@ -55,7 +55,7 @@
         <string>/Users/YOUR_USER/code_quant/env_quant/bin/uvicorn</string>
         <string>api.main:app</string>
         <string>--host</string>
-        <string>0.0.0.0</string>
+        <string>127.0.0.1</string>
         <string>--port</string>
         <string>8000</string>
         <string>--workers</string>
