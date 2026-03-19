@@ -23,8 +23,8 @@
     查看状态：        launchctl list  | grep quant
 
   同步时间说明（StartCalendarInterval）：
-    当前配置：周一至周五 15:30（A股收盘后）
-    如需多市场同步，可添加多个时间段（见注释示例）
+    当前配置：周一至周五 16:30（A股15:00收盘、港股16:00收盘后均已结束）
+    如需同步美股，可额外添加次日 05:00 时间段（见注释示例）
 
   注意：此文件使用 YOUR_USER 占位符，实际部署时替换为真实用户名，
         或通过 sed 替换：
@@ -65,7 +65,8 @@
     <!--
       计划时间（StartCalendarInterval）
       ─────────────────────────────────
-      A股收盘后 15:30（周一至周五）
+      A股+港股收盘后 16:30（周一至周五）
+      A股收盘：15:00，港股收盘：16:00，16:30 确保两个市场均已结束
       Weekday: 1=周一，2=周二，...，5=周五，0/7=周日
 
       如需多时段同步（A股 + 港股 + 美股），可使用数组：
@@ -81,33 +82,33 @@
     -->
     <key>StartCalendarInterval</key>
     <array>
-        <!-- 周一 15:30 -->
+        <!-- 周一 16:30 -->
         <dict>
-            <key>Hour</key><integer>15</integer>
+            <key>Hour</key><integer>16</integer>
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>1</integer>
         </dict>
-        <!-- 周二 15:30 -->
+        <!-- 周二 16:30 -->
         <dict>
-            <key>Hour</key><integer>15</integer>
+            <key>Hour</key><integer>16</integer>
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>2</integer>
         </dict>
-        <!-- 周三 15:30 -->
+        <!-- 周三 16:30 -->
         <dict>
-            <key>Hour</key><integer>15</integer>
+            <key>Hour</key><integer>16</integer>
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>3</integer>
         </dict>
-        <!-- 周四 15:30 -->
+        <!-- 周四 16:30 -->
         <dict>
-            <key>Hour</key><integer>15</integer>
+            <key>Hour</key><integer>16</integer>
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>4</integer>
         </dict>
-        <!-- 周五 15:30 -->
+        <!-- 周五 16:30 -->
         <dict>
-            <key>Hour</key><integer>15</integer>
+            <key>Hour</key><integer>16</integer>
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>5</integer>
         </dict>
