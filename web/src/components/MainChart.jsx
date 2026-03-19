@@ -145,10 +145,16 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
             ma60[idx] != null ? `MA60:${ma60[idx]}`  : '',
           ].filter(Boolean).join('  ')
           if (maLine) lines.push(maLine)
-          // FEAT-02：数据更新时间（null 时不显示）
+          // FEAT-02：数据更新时间（null 时不显示），DB 存 UTC，显示转为 UTC+8
           if (bar.updated_at != null) {
-            lines.push('─────────────────')
-            lines.push(`数据更新：${bar.updated_at}`)
+            const pad = n => String(n).padStart(2, '0')
+            const t = new Date(bar.updated_at.replace(' ', 'T') + 'Z')
+            if (!isNaN(t)) {
+              const t8 = new Date(t.getTime() + 8 * 3600 * 1000)
+              const displayStr = `${t8.getUTCFullYear()}-${pad(t8.getUTCMonth()+1)}-${pad(t8.getUTCDate())} ${pad(t8.getUTCHours())}:${pad(t8.getUTCMinutes())}:${pad(t8.getUTCSeconds())}`
+              lines.push('─────────────────')
+              lines.push(`数据更新：${displayStr}`)
+            }
           }
           return lines.filter(Boolean).join('<br/>')
         },

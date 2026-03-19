@@ -330,7 +330,15 @@ class SyncEngine:
                 "%d invalid bars for %s [%s], storing with is_valid=0",
                 len(invalid_bars), stock_code, period
             )
-            self._kline_repo.insert_many(invalid_bars)  # is_valid=0 写入，供追查
+            if latest_date is None:
+                self._kline_repo.insert_many(invalid_bars)
+            else:
+                inv_history = [b for b in invalid_bars if b.trade_date < latest_date]
+                inv_latest  = [b for b in invalid_bars if b.trade_date >= latest_date]
+                if inv_history:
+                    self._kline_repo.insert_many(inv_history)
+                if inv_latest:
+                    self._kline_repo.upsert_many(inv_latest)
 
         # rows_inserted 仅统计有效行写入数；invalid_bars 写入量见上方 WARNING 日志
         if latest_date is None:
@@ -339,7 +347,7 @@ class SyncEngine:
         else:
             # 区分历史日期与最新交易日，分别使用不同写入策略
             history_bars = [b for b in valid_bars if b.trade_date < latest_date]
-            latest_bars  = [b for b in valid_bars if b.trade_date == latest_date]
+            latest_bars  = [b for b in valid_bars if b.trade_date >= latest_date]
             rows_inserted = 0
             if history_bars:
                 rows_inserted += self._kline_repo.insert_many(history_bars)
