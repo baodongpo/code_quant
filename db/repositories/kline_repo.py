@@ -115,4 +115,5 @@ class KlineRepository:
             turnover_rate=row["turnover_rate"],
             last_close=row["last_close"],
             is_valid=bool(row["is_valid"]),
+            updated_at=row["updated_at"] if "updated_at" in row.keys() else None,
         )

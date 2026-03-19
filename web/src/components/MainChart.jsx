@@ -145,6 +145,11 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
             ma60[idx] != null ? `MA60:${ma60[idx]}`  : '',
           ].filter(Boolean).join('  ')
           if (maLine) lines.push(maLine)
+          // FEAT-02：数据更新时间（null 时不显示）
+          if (bar.updated_at != null) {
+            lines.push('─────────────────')
+            lines.push(`数据更新：${bar.updated_at}`)
+          }
           return lines.filter(Boolean).join('<br/>')
         },
       },

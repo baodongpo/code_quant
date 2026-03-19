@@ -68,3 +68,9 @@ RECONNECT_MAX_RETRIES = int(os.getenv("RECONNECT_MAX_RETRIES", "5"))
 RECONNECT_BASE_INTERVAL = int(os.getenv("RECONNECT_BASE_INTERVAL", "30"))
 HEALTH_CHECK_INTERVAL = int(os.getenv("HEALTH_CHECK_INTERVAL", "60"))
 HEALTH_FILE = os.getenv("HEALTH_FILE", os.path.join(BASE_DIR, "data", "health.json"))
+
+# ============================================================
+# Web 访问控制配置（迭代5新增：局域网访问 + Token 鉴权）
+# ============================================================
+WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")          # uvicorn 绑定地址，0.0.0.0 开放局域网
+WEB_ACCESS_TOKEN = os.getenv("WEB_ACCESS_TOKEN", "")   # 访问 Token，留空不启用鉴权

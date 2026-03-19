@@ -21,6 +21,7 @@ class KlineBar:
     is_valid: bool = True
     is_adjusted: bool = False  # True 表示已经过复权计算
     adjust_type: Optional[str] = None  # 复权类型："qfq"（前复权）/ None（未复权），不落库，调用层填充
+    updated_at: Optional[str] = None   # 最近写入/更新时间，不落库，API 层透传用（格式 YYYY-MM-DD HH:MM:SS）
 
 
 @dataclass

@@ -2,12 +2,20 @@
  * api/client.js — Axios 封装，统一 API 调用
  */
 import axios from 'axios'
+import { getToken } from '../utils/auth.js'
 
 const BASE_URL = import.meta.env.VITE_API_BASE || ''
 
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
+})
+
+/** 请求拦截器：自动附加 X-Access-Token 请求头（token 为空时不附加）*/
+client.interceptors.request.use(config => {
+  const token = getToken()
+  if (token) config.headers['X-Access-Token'] = token
+  return config
 })
 
 /** 获取活跃股票列表 */

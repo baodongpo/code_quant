@@ -96,7 +96,7 @@ info "日志输出：${LOG_FILE}"
 cd "$DEPLOY_DIR"
 
 nohup "${UVICORN}" api.main:app \
-    --host 127.0.0.1 \
+    --host "${WEB_HOST:-127.0.0.1}" \
     --port "${WEB_PORT}" \
     --workers 1 \
     --log-level info \

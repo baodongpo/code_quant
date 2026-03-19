@@ -194,7 +194,7 @@ class SyncEngine:
 
         # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
         rows_fetched, rows_inserted = self._fetch_and_store(
-            stock, period, start_date, today
+            stock, period, start_date, today, latest_date=today
         )
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
@@ -301,9 +301,18 @@ class SyncEngine:
                 )
 
     def _fetch_and_store(
-        self, stock: Stock, period: str, start_date: str, end_date: str
+        self, stock: Stock, period: str, start_date: str, end_date: str,
+        latest_date: str = None,
     ) -> Tuple[int, int]:
-        """拉取并存储K线数据，返回 (rows_fetched, rows_inserted)。"""
+        """拉取并存储K线数据，返回 (rows_fetched, rows_inserted)。
+
+        写入策略：
+          - latest_date（通常为 today）当日的 bar → upsert_many（INSERT OR CONFLICT DO UPDATE）
+            保证进程中途退出后重启时，当日半日数据可被最新数据覆盖写。
+          - 早于 latest_date 的历史 bar → insert_many（INSERT OR IGNORE）
+            历史数据不重复写入，保持幂等。
+          - latest_date 为 None 时，全部使用 insert_many（兼容旧调用路径）。
+        """
         stock_code = stock.stock_code
         bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
 
@@ -320,7 +329,22 @@ class SyncEngine:
             self._kline_repo.insert_many(invalid_bars)  # is_valid=0 写入，供追查
 
         # rows_inserted 仅统计有效行写入数；invalid_bars 写入量见上方 WARNING 日志
-        rows_inserted = self._kline_repo.insert_many(valid_bars)
+        if latest_date is None:
+            # 兼容旧路径：全部 INSERT OR IGNORE
+            rows_inserted = self._kline_repo.insert_many(valid_bars)
+        else:
+            # 区分历史日期与最新交易日，分别使用不同写入策略
+            history_bars = [b for b in valid_bars if b.trade_date < latest_date]
+            latest_bars  = [b for b in valid_bars if b.trade_date == latest_date]
+            rows_inserted = 0
+            if history_bars:
+                rows_inserted += self._kline_repo.insert_many(history_bars)
+            if latest_bars:
+                rows_inserted += self._kline_repo.upsert_many(latest_bars)
+                logger.debug(
+                    "Upserted %d bar(s) for %s [%s] on latest_date=%s",
+                    len(latest_bars), stock_code, period, latest_date,
+                )
         return rows_fetched, rows_inserted
 
     def _fetch_klines_paged(

@@ -12,10 +12,13 @@ api/main.py — FastAPI 应用入口
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.routes import indicators, kline, stocks, watchlist
+from config.settings import WEB_ACCESS_TOKEN
 
 # ---------------------------------------------------------------------------
 # 应用初始化
@@ -41,9 +44,46 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins.split(",")],
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Token 鉴权中间件（FEAT-04：局域网访问 + Token 鉴权）
+# ---------------------------------------------------------------------------
+
+_403_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>403 Forbidden</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:80px;color:#555">
+<h1>403 Forbidden</h1>
+<p>访问被拒绝。请携带有效的 <code>?token=</code> 参数后重试。</p>
+</body></html>"""
+
+
+class TokenAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # 1. OPTIONS 预检直接放行（必须最优先，否则浏览器跨域失败）
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        # 2. 本机回环豁免
+        client_ip = request.client.host if request.client else ""
+        if client_ip in ("127.0.0.1", "::1"):
+            return await call_next(request)
+        # 3. token 未配置时不启用鉴权
+        if not WEB_ACCESS_TOKEN:
+            return await call_next(request)
+        # 4. 校验 token（Header 优先，query 兜底）
+        token = request.headers.get("X-Access-Token") or request.query_params.get("token", "")
+        if token == WEB_ACCESS_TOKEN:
+            return await call_next(request)
+        # 5. 鉴权失败
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept:
+            return HTMLResponse(_403_HTML, status_code=403)
+        return JSONResponse({"detail": "Unauthorized"}, status_code=403)
+
+
+app.add_middleware(TokenAuthMiddleware)
 
 # ---------------------------------------------------------------------------
 # 路由挂载（均在 /api 前缀下）

@@ -134,6 +134,7 @@ class AdjustmentService:
             is_valid=bar.is_valid,
             is_adjusted=True,
             adjust_type=adj_type,
+            updated_at=bar.updated_at,
         )
 
     @staticmethod
@@ -157,4 +158,5 @@ class AdjustmentService:
             is_valid=bar.is_valid,
             is_adjusted=True,
             adjust_type=adj_type,
+            updated_at=bar.updated_at,
         )

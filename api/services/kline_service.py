@@ -86,6 +86,7 @@ def get_kline_with_indicators(
             "pb_ratio":     b.pb_ratio,
             "ps_ratio":     b.ps_ratio,
             "turnover_rate": b.turnover_rate,
+            "updated_at":   b.updated_at,   # FEAT-02：数据最近写入时间，null 时前端不显示
         }
         for b in bars
     ]

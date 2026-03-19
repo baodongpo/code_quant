@@ -203,8 +203,9 @@ def init_db(db_path: str) -> None:
             for row in conn.execute("PRAGMA table_info(kline_data)").fetchall()
         }
         for col, ddl in [
-            ("pb_ratio", "ALTER TABLE kline_data ADD COLUMN pb_ratio REAL"),
-            ("ps_ratio", "ALTER TABLE kline_data ADD COLUMN ps_ratio REAL"),
+            ("pb_ratio",   "ALTER TABLE kline_data ADD COLUMN pb_ratio REAL"),
+            ("ps_ratio",   "ALTER TABLE kline_data ADD COLUMN ps_ratio REAL"),
+            ("updated_at", "ALTER TABLE kline_data ADD COLUMN updated_at TEXT"),
         ]:
             if col not in kline_cols:
                 try:
