@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS stocks (
     is_active       INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
     lot_size        INTEGER NOT NULL DEFAULT 1,
     currency        TEXT NOT NULL CHECK(currency IN ('HKD','USD','CNY')),
+    name            TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -163,6 +164,19 @@ def init_db(db_path: str) -> None:
         conn.execute("PRAGMA foreign_keys=ON;")
         for ddl in ALL_DDLS:
             conn.execute(ddl)
+        # 迁移：为旧版 stocks 表补充 name 列（幂等）
+        stocks_cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(stocks)").fetchall()
+        }
+        if "name" not in stocks_cols:
+            try:
+                conn.execute("ALTER TABLE stocks ADD COLUMN name TEXT")
+                # SQLite DDL（ALTER TABLE）会隐式提交，name 列添加后已持久化。
+                # 函数末尾 conn.commit() 主要用于 commit 后续 DML 操作（如有）。
+            except sqlite3.OperationalError:
+                pass  # 并发 init_db 时已由其他进程添加，忽略
+
         # 迁移：为旧版 adjust_factors 表补充 B 列（幂等）
         existing = {
             row[1]

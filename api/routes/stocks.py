@@ -16,6 +16,7 @@ def list_stocks():
         "stocks": [
             {
                 "stock_code": s.stock_code,
+                "name":       s.name,
                 "market":     s.market,
                 "asset_type": s.asset_type,
                 "currency":   s.currency,

@@ -140,6 +140,7 @@ class WatchlistManager:
                         is_active=market_enabled and stock_active,
                         lot_size=int(item.get("lot_size", 1)),
                         currency=item["currency"],
+                        name=item.get("name"),
                     ))
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning("Invalid watchlist entry %s: %s", item, e)

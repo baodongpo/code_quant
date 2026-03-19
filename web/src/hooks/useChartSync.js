@@ -4,14 +4,27 @@
  * 方案说明：
  *   不使用 echarts.connect()，因为主图有两个 grid（K线区 + 成交量区），
  *   echarts.connect() 在成交量区悬停时存在联动失效的已知问题。
- *   改用监听主图 updateAxisPointer 事件，手动 dispatchAction 到各副图。
+ *   改用监听 updateAxisPointer 事件手动同步十字线，监听所有图表的
+ *   dataZoom 事件双向同步滑动条（BUG-03 修复）。
  *
- * @param mainRef  - 主图 ReactECharts 组件 ref
- * @param subRefs  - 副图 ReactECharts 组件 ref 数组 [macdRef, rsiRef, kdjRef]
+ * BUG-03 修复：
+ *   原实现仅从主图单向同步 dataZoom 到副图，副图 slider 拖动时无法反向
+ *   同步到主图及其他副图。
+ *   新实现：对主图 + 所有副图均注册 dataZoom 监听，任意图表 slider 变化时
+ *   广播到其余所有图表。使用互斥标志 syncing 防止循环触发。
+ *
+ * 折叠重建修复：
+ *   副图折叠/展开使用条件渲染，展开时产生全新 ECharts 实例。ref 对象引用
+ *   不变所以 effect 不重跑。通过额外接收 collapsed 状态对象并加入依赖数组，
+ *   折叠状态变化时 effect 重新执行，自动将新实例纳入同步链。
+ *
+ * @param mainRef   - 主图 ReactECharts 组件 ref
+ * @param subRefs   - 副图 ReactECharts 组件 ref 数组 [macdRef, rsiRef, kdjRef]
+ * @param collapsed - 折叠状态对象 { MACD, RSI, KDJ }，用于触发 effect 重绑定
  */
 import { useEffect } from 'react'
 
-export default function useChartSync(mainRef, subRefs) {
+export default function useChartSync(mainRef, subRefs, collapsed) {
   useEffect(() => {
     // 用外部变量持有 cleanup 引用，确保 useEffect 返回函数能正确调用
     // （setTimeout 内部的 return 会被 setTimeout 丢弃，不能直接 return）
@@ -24,6 +37,8 @@ export default function useChartSync(mainRef, subRefs) {
       const subs = subRefs
         .map(r => r?.current?.getEchartsInstance?.())
         .filter(Boolean)
+
+      const allCharts = [main, ...subs]
 
       // 1. 主图十字线移动时，同步到所有副图
       const onAxisPointer = (event) => {
@@ -45,22 +60,35 @@ export default function useChartSync(mainRef, subRefs) {
       }
       mainDom.addEventListener('mouseleave', onMouseLeave)
 
-      // 3. 主图 dataZoom 变化时 → 同步副图缩放范围
-      const onDataZoom = () => {
-        const option = main.getOption()
-        const zoom = option?.dataZoom?.[0]  // slider 是第0个（已移除 inside）
-        if (!zoom) return
-        subs.forEach(c => {
-          c.dispatchAction({ type: 'dataZoom', start: zoom.start, end: zoom.end })
-        })
-      }
-      main.on('dataZoom', onDataZoom)
+      // 3. 任意图表 dataZoom 变化时 → 全局广播（双向联动，BUG-03 修复）
+      //    互斥标志：防止 dispatchAction 触发目标图表 dataZoom 事件后循环调用
+      const syncing = { value: false }
+      const zoomHandlers = []
+
+      allCharts.forEach((chart, idx) => {
+        const others = allCharts.filter((_, j) => j !== idx)
+        const handler = () => {
+          if (syncing.value) return
+          const option = chart.getOption()
+          const zoom = option?.dataZoom?.[0]  // slider 是第0个（已移除 inside）
+          if (!zoom) return
+          syncing.value = true
+          others.forEach(c => {
+            c.dispatchAction({ type: 'dataZoom', start: zoom.start, end: zoom.end })
+          })
+          syncing.value = false
+        }
+        chart.on('dataZoom', handler)
+        zoomHandlers.push({ chart, handler })
+      })
 
       // 注册 cleanup，供 useEffect 返回函数调用
       cleanup = () => {
         main.off('updateAxisPointer', onAxisPointer)
-        main.off('dataZoom', onDataZoom)
         mainDom.removeEventListener('mouseleave', onMouseLeave)
+        zoomHandlers.forEach(({ chart, handler }) => {
+          chart.off('dataZoom', handler)
+        })
       }
     }, 300)
 
@@ -70,5 +98,5 @@ export default function useChartSync(mainRef, subRefs) {
       cleanup?.()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainRef, ...subRefs])
+  }, [mainRef, ...subRefs, collapsed])
 }

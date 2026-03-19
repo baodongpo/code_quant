@@ -10,5 +10,6 @@ class Stock:
     is_active: bool
     lot_size: int          # 每手股数
     currency: str          # "HKD", "USD", "CNY"
+    name: Optional[str] = None  # 股票名称，如"腾讯控股"
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

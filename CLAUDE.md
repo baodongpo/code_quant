@@ -113,8 +113,18 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代3：技术指标可视化 Web 服务（已完成，tag v0.3.0）
 - [x] 部署打包脚本（pack.sh / deploy.sh / start.sh / stop.sh / plist，tag v0.3.1）
 - [x] 联调验证（/api/health ✅ /api/stocks ✅ /api/watchlist/summary ✅ /docs ✅ 浏览器 K线图+指标面板 ✅）
-- [ ] 迭代3.5：Web 界面优化（综合信号横幅、宽松布局、买卖标记、红涨绿跌配色、侧边说明栏、跨图联动）进行中
-- [ ] 迭代4规划：基本面数据（ROE/PB/PS）、备用数据源、归档清理（PRD 已暂存 docs/requirements_iter4.md）
+- [x] 迭代3.5：Web 界面优化（综合信号横幅、宽松布局、买卖标记、红涨绿跌配色、侧边说明栏、跨图联动）✅ 全部完成
+- [x] 迭代4（范围已确认 2026-03-19，全部完成 2026-03-19，发布包 v0.4.0-20260319，待目标机验收后打 tag）：
+  - [x] BUG-01：交易日历增量更新缺失（calendar_repo.has_calendar 改为 max(trade_date) >= end_date）✅
+  - [x] BUG-02：Watchlist 表格单元格居中对齐 ✅
+  - [x] BUG-03：副图滑动条无法与主图全局联动 ✅ useChartSync 双向 dataZoom 广播+互斥标志+折叠重建重绑定
+  - [x] stock name：watchlist.json 加 name 字段，全链路显示股票名称，优化布局 ✅
+  - [x] 下拉配色：首页股票选择下拉多头红色/空头绿色字体 ✅
+  - [x] FEAT-01：指标图表新手解释浮层（MACD/RSI/KDJ [?] 图标，默认隐藏，点击展开，不含买卖指令）✅
+  - [x] deploy/start.sh 版本更新迁移支持：新增 `python main.py migrate` 子命令 ✅
+  - [x] 发现-01（附加）：has_calendar SQL 补 `AND is_trading_day = 1` 过滤 ✅
+- [ ] 迭代5（待规划）：
+  - [ ] TODO-01：sync 重启时对最新交易日使用 `upsert_many`（覆盖写）而非 `insert_many`（跳过），修复进程中途退出导致当日半日K线永远不更新为全日数据的问题。涉及 `SyncEngine` 增量逻辑，需区分"历史日期"与"最新交易日"两种写入策略
 
 ---
 
@@ -142,3 +152,7 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - 永远使用显式路径：`./env_quant/bin/pip install`、`./env_quant/bin/python`、`./env_quant/bin/uvicorn`
   - 不依赖 `mamba activate` / `source activate` 的 shell 激活状态（CI、子 shell、Claude Code 执行环境均不保证继承激活状态）
   - 凡是在 CLAUDE.md、脚本、文档中出现的 `pip`/`python`/`uvicorn` 裸命令，均应替换为 `./env_quant/bin/` 前缀版本
+- **【团队协作规则】各角色各司其职，不越权**
+  - team-lead 负责任务分配、流程协调、进度跟踪，不直接写业务代码
+  - Dev 负责代码实现，QA 负责代码审查和测试，PM 负责需求评估和验收
+- **【迭代启动规则】任何迭代计划，必须等待老板明确确认范围后方可启动开发**，不得提前分配任务或开始实现

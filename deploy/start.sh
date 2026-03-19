@@ -66,6 +66,15 @@ fi
 mkdir -p "${DEPLOY_DIR}/data"
 mkdir -p "${DEPLOY_DIR}/logs"
 
+# ─── DB 表结构迁移 + watchlist 股票名称同步 ──────────────────
+info "运行数据库迁移（表结构升级 + 股票名称同步）..."
+cd "$DEPLOY_DIR"
+if "${VENV_DIR}/bin/python" main.py migrate; then
+    info "数据库迁移完成"
+else
+    warn "数据库迁移失败，请检查日志，服务仍将尝试启动"
+fi
+
 # ─── 加载 .env 配置 ──────────────────────────────────────────
 ENV_FILE="${DEPLOY_DIR}/.env"
 if [[ -f "$ENV_FILE" ]]; then

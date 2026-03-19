@@ -199,6 +199,13 @@ info "pip install -r requirements.txt..."
 "${VENV_DIR}/bin/pip" install --quiet -r "${DEPLOY_DIR}/requirements.txt"
 success "依赖安装完成"
 
+# ─── DB 表结构迁移 + watchlist 股票名称同步 ──────────────────
+step "数据库迁移（表结构升级 + 股票名称同步）"
+info "运行 main.py migrate（幂等，首次部署和升级均可安全执行）..."
+cd "${DEPLOY_DIR}"
+"${VENV_DIR}/bin/python" main.py migrate
+success "数据库迁移完成"
+
 # ─── 用户配置文件 ─────────────────────────────────────────────
 step "检查用户配置文件"
 

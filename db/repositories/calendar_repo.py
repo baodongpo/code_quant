@@ -28,14 +28,28 @@ class CalendarRepository:
         return [r["trade_date"] for r in rows]
 
     def has_calendar(self, market: str, start_date: str, end_date: str) -> bool:
-        """检查某市场在指定范围内是否已有日历数据。"""
+        """
+        检查某市场的日历数据是否已覆盖到 end_date。
+
+        修复 BUG-01：原实现仅判断范围内是否存在任意记录（COUNT > 0），
+        导致增量同步时因历史数据已存在而跳过，造成近期交易日缺失。
+        现改为检查 MAX(trade_date) >= end_date，确保日历数据覆盖到请求范围末尾。
+
+        发现-01：必须加 is_trading_day = 1 过滤，否则节假日补录的休市记录
+        （is_trading_day=0）会使 MAX 偏大，导致误判已覆盖而跳过增量拉取。
+
+        注意：若 end_date 为周末/节假日（非交易日），MAX(trade_date) 为上一个
+        交易日（< end_date），此时返回 False 并触发增量拉取。增量拉取为幂等操作
+        （INSERT OR IGNORE），对已有数据无副作用，轻微的重复拉取可接受。
+        """
         sql = """
-            SELECT COUNT(*) AS cnt FROM trading_calendar
-            WHERE market = ? AND trade_date >= ? AND trade_date <= ?
+            SELECT MAX(trade_date) AS max_date FROM trading_calendar
+            WHERE market = ? AND is_trading_day = 1
         """
         with DBConnection(self._db_path) as conn:
-            row = conn.execute(sql, (market, start_date, end_date)).fetchone()
-        return row["cnt"] > 0
+            row = conn.execute(sql, (market,)).fetchone()
+        max_date = row["max_date"] if row else None
+        return max_date is not None and max_date >= end_date
 
     def get_weekly_last_trading_days(
         self, market: str, start_date: str, end_date: str

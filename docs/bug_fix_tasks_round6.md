@@ -4,6 +4,8 @@
 **日期：** 2026-03-04
 **基准版本：** commit 90229af
 **关联 CR 会话：** 本轮覆盖 `adjustment_service.py`、`adjust_factor_fetcher.py`、`gap_detector.py`（L-2）、`watchlist_manager.py`（L-3）
+**结案日期：** 2026-03-04
+**最终状态：** 全部 P0 项关闭，联调验证通过，TASK-6 低风险遗留
 
 ---
 
@@ -22,10 +24,12 @@
 
 ---
 
-### TASK-1：修复 `last_close` 使用错误复权系数
+### TASK-1：修复 `last_close` 使用错误复权系数 ✅ 已关闭
 
 **文件：** `core/adjustment_service.py:118`
 **严重级：** 严重 / P0
+**修复 commit：** 8a41b0d
+**联调验证：** 2026-03-04，SZ.000063 / HK.00700 各3个除权日，`adjusted_bar[t].last_close == adjusted_bar[t-1].close` 全部通过
 
 **问题描述：**
 `last_close` 是当日（trade_date = t）的前收盘价，语义为 `t-1` 日的原始收盘价。当前代码对其使用 `t` 日的复权系数 `(A, B)` 进行调整：
@@ -52,10 +56,11 @@ last_close=None,
 
 ---
 
-### TASK-2：修复 `_group_consecutive` 默认值 `-1` 的隐患
+### TASK-2：修复 `_group_consecutive` 默认值 `-1` 的隐患 ✅ 已关闭
 
 **文件：** `core/gap_detector.py:120-121`
 **严重级：** 严重 / P0
+**修复 commit：** 8a41b0d
 
 **问题描述：**
 ```python

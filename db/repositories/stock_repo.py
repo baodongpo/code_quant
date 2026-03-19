@@ -9,39 +9,41 @@ class StockRepository:
 
     def upsert(self, stock: Stock) -> None:
         sql = """
-            INSERT INTO stocks (stock_code, market, asset_type, is_active, lot_size, currency, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            INSERT INTO stocks (stock_code, market, asset_type, is_active, lot_size, currency, name, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(stock_code) DO UPDATE SET
                 market      = excluded.market,
                 asset_type  = excluded.asset_type,
                 is_active   = excluded.is_active,
                 lot_size    = excluded.lot_size,
                 currency    = excluded.currency,
+                name        = excluded.name,
                 updated_at  = datetime('now')
         """
         with DBConnection(self._db_path) as conn:
             conn.execute(sql, (
                 stock.stock_code, stock.market, stock.asset_type,
                 1 if stock.is_active else 0,
-                stock.lot_size, stock.currency
+                stock.lot_size, stock.currency, stock.name
             ))
 
     def upsert_many(self, stocks: List[Stock]) -> None:
         sql = """
-            INSERT INTO stocks (stock_code, market, asset_type, is_active, lot_size, currency, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            INSERT INTO stocks (stock_code, market, asset_type, is_active, lot_size, currency, name, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(stock_code) DO UPDATE SET
                 market      = excluded.market,
                 asset_type  = excluded.asset_type,
                 is_active   = excluded.is_active,
                 lot_size    = excluded.lot_size,
                 currency    = excluded.currency,
+                name        = excluded.name,
                 updated_at  = datetime('now')
         """
         with DBConnection(self._db_path) as conn:
             conn.executemany(sql, [
                 (s.stock_code, s.market, s.asset_type,
-                 1 if s.is_active else 0, s.lot_size, s.currency)
+                 1 if s.is_active else 0, s.lot_size, s.currency, s.name)
                 for s in stocks
             ])
 
@@ -80,6 +82,7 @@ class StockRepository:
             is_active=bool(row["is_active"]),
             lot_size=row["lot_size"],
             currency=row["currency"],
+            name=row["name"] if "name" in row.keys() else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

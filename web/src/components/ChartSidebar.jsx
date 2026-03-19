@@ -2,7 +2,7 @@
  * components/ChartSidebar.jsx — 图表右侧固定说明栏（200px）
  *
  * 每个图表（主图 + MACD + RSI + KDJ）右侧紧贴的固定 200px 说明栏，
- * 始终可见，包含：当前指标值/信号标签 + HTML图例 + 3条通俗解读
+ * 始终可见，包含：当前指标值/信号标签 + HTML图例 + 可折叠解读浮层
  *
  * Props:
  *   title        - 面板标题（如 "📶 MACD 趋势动能"）
@@ -11,8 +11,17 @@
  *   valueItems   - Array<{ label, value, type? }>  指标当前值
  *   legendItems  - Array<{ color, type, label }>   HTML图例
  *   guideItems   - Array<{ dotType?, dotColor?, text }>  解读文案
+ *
+ * FEAT-01：
+ *   标题区右侧新增 [?] 图标按钮，点击切换 showGuide 状态（默认 false）。
+ *   「📖 如何看这张图」区块仅在 showGuide=true 时渲染。
+ *   每个 ChartSidebar 实例独立维护自己的展开/折叠状态。
+ *
+ * 强制规范（CLAUDE.md 裁定）：
+ *   guideItems 文案严禁包含任何买卖操作指令，只允许描述现象/机制。
+ *   未来新增指标时同样必须补充 guideItems，且遵守此规范。
  */
-import React from 'react'
+import React, { useState } from 'react'
 import { C } from '../utils/colors.js'
 
 const SIGNAL_STYLE = {
@@ -36,6 +45,7 @@ export default function ChartSidebar({
   guideItems  = [],
 }) {
   const sigStyle = SIGNAL_STYLE[signal] || SIGNAL_STYLE.neutral
+  const [showGuide, setShowGuide] = useState(false)
 
   return (
     <div style={{
@@ -51,10 +61,30 @@ export default function ChartSidebar({
       gap:            10,
       overflowY:      'auto',
     }}>
-      {/* 标题 */}
+      {/* 标题 + [?] 按钮 */}
       {title && (
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-          {title}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.text, flex: 1 }}>
+            {title}
+          </span>
+          {guideItems.length > 0 && (
+            <button
+              onClick={() => setShowGuide(v => !v)}
+              title={showGuide ? '收起说明' : '展开指标说明'}
+              style={{
+                flexShrink:   0,
+                background:   showGuide ? C.accentBg : 'none',
+                border:       `1px solid ${showGuide ? C.accent : C.border2}`,
+                borderRadius: 4,
+                color:        showGuide ? C.accentText : C.textMuted,
+                fontSize:     11,
+                fontWeight:   600,
+                cursor:       'pointer',
+                padding:      '1px 6px',
+                lineHeight:   '18px',
+              }}
+            >?</button>
+          )}
         </div>
       )}
 
@@ -106,14 +136,10 @@ export default function ChartSidebar({
         </div>
       )}
 
-      {/* 分割线 */}
-      {guideItems.length > 0 && (
-        <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '2px 0' }} />
-      )}
-
-      {/* 解读文案 */}
-      {guideItems.length > 0 && (
+      {/* 解读文案（仅 showGuide=true 时渲染） */}
+      {showGuide && guideItems.length > 0 && (
         <>
+          <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '2px 0' }} />
           <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText }}>📖 如何看这张图</div>
           {guideItems.map((item, i) => {
             const dotColor = item.dotColor

@@ -21,7 +21,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchStocks, fetchKline } from '../api/client.js'
+import { fetchStocks, fetchKline, fetchWatchlistSummary } from '../api/client.js'
 import StockSelector     from '../components/StockSelector.jsx'
 import PeriodSelector    from '../components/PeriodSelector.jsx'
 import TimeRangeSelector from '../components/TimeRangeSelector.jsx'
@@ -65,6 +65,7 @@ export default function StockAnalysis() {
   const [lastUpdate, setLastUpdate]= useState(null)
   const [showMarkers,setShowMarkers]= useState(true)     // 标记点开关
   const [collapsed,  setCollapsed] = useState(loadCollapseState)  // 副图折叠状态
+  const [watchlistSignals, setWatchlistSignals] = useState({})  // 各股综合信号
 
   // 图表 refs（供 forwardRef + useChartSync 使用）
   const mainRef = useRef(null)
@@ -74,17 +75,36 @@ export default function StockAnalysis() {
 
   const timerRef = useRef(null)
 
-  // 跨图联动（主图十字线 → 副图同步）
-  useChartSync(mainRef, [macdRef, rsiRef, kdjRef])
+  // 跨图联动（主图十字线 → 副图同步；collapsed 变化时重绑定新 ECharts 实例）
+  useChartSync(mainRef, [macdRef, rsiRef, kdjRef], collapsed)
 
   // 加载股票列表
   useEffect(() => {
     fetchStocks()
       .then(list => {
         setStocks(list)
-        if (list.length > 0 && !code) setCode(list[0].stock_code)
+        // 从 URL 参数读取初始股票代码
+        const params = new URLSearchParams(window.location.search)
+        const urlCode = params.get('code')
+        const initialCode = urlCode && list.find(s => s.stock_code === urlCode)
+          ? urlCode
+          : (list.length > 0 ? list[0].stock_code : null)
+        if (initialCode && !code) setCode(initialCode)
       })
       .catch(e => setError(e.message))
+  }, [])
+
+  // 加载 watchlist 综合信号，用于下拉颜色
+  useEffect(() => {
+    fetchWatchlistSummary()
+      .then(summary => {
+        const map = {}
+        summary.forEach(item => {
+          map[item.stock_code] = item.signals?.composite || 'neutral'
+        })
+        setWatchlistSignals(map)
+      })
+      .catch(e => console.warn('[StockSelector] watchlist 信号加载失败，颜色功能降级:', e.message))  // 不阻断主流程
   }, [])
 
   // 加载 K线+指标数据
@@ -140,7 +160,9 @@ export default function StockAnalysis() {
 
   // 当前股票名称
   const currentStock = stocks.find(s => s.stock_code === code)
-  const stockName    = currentStock ? `${currentStock.name} ${code}` : code
+  const stockDisplayName = currentStock?.name
+    ? `${currentStock.name}（${code}）`
+    : (code || '')
 
   // ── 侧边栏配置 ──
 
@@ -172,9 +194,9 @@ export default function StockAnalysis() {
     { color: C.sell,       type: 'circle', label: '死叉' },
   ]
   const macdSidebarGuide = [
-    { dotType: 'bull', text: '<b>红圈●金叉</b>：DIF上穿DEA，动能转多，关注买入' },
-    { dotType: 'bear', text: '<b>绿圈●死叉</b>：DIF下穿DEA，动能转弱，注意风险' },
-    { dotType: 'neut', text: '柱由负转正且放大，趋势转强信号' },
+    { dotType: 'bull', text: '<b>红圈●金叉</b>：DIF 上穿 DEA，短期动能由弱转强的信号' },
+    { dotType: 'bear', text: '<b>绿圈●死叉</b>：DIF 下穿 DEA，短期动能由强转弱的信号' },
+    { dotType: 'neut', text: 'MACD 柱由负转正并持续放大，反映多空力量正在转变' },
   ]
 
   const rsiSidebarLegend = [
@@ -183,9 +205,9 @@ export default function StockAnalysis() {
     { color: C.buy,        type: 'bar',    label: '超卖区(买)' },
   ]
   const rsiSidebarGuide = [
-    { dotType: 'bear', text: '<b>RSI &gt; 70（绿色区域）</b>：超买，涨势过热，留意卖出' },
-    { dotType: 'bull', text: '<b>RSI &lt; 30（红色区域）</b>：超卖，跌势过深，关注买入' },
-    { dotType: 'neut', text: '30–70 中性区间，趋势延续，观望为主' },
+    { dotType: 'bear', text: '<b>RSI &gt; 70（绿色区域）</b>：超买区间，价格短期涨幅较大，动能偏强' },
+    { dotType: 'bull', text: '<b>RSI &lt; 30（红色区域）</b>：超卖区间，价格短期跌幅较大，动能偏弱' },
+    { dotType: 'neut', text: '30–70 为中性区间，多空力量相对均衡' },
   ]
 
   const kdjSidebarLegend = [
@@ -196,9 +218,9 @@ export default function StockAnalysis() {
     { color: C.sell,  type: 'circle', label: '死叉' },
   ]
   const kdjSidebarGuide = [
-    { dotType: 'bull', text: '<b>红圈●金叉</b>：K从下穿D且低位，短线买入参考' },
-    { dotType: 'bear', text: '<b>绿圈●死叉</b>：K从上穿D且高位，短线卖出参考' },
-    { dotType: 'neut', text: 'J线波动最大，可提前预警超买(&gt;80)超卖(&lt;20)' },
+    { dotType: 'bull', text: '<b>红圈●金叉</b>：K 线从下方穿越 D 线，低位出现时反映短期超卖后的动能回升' },
+    { dotType: 'bear', text: '<b>绿圈●死叉</b>：K 线从上方穿越 D 线，高位出现时反映短期超买后的动能回落' },
+    { dotType: 'neut', text: 'J 线是 K/D 的放大版，超过 80 或低于 20 时波动往往加剧' },
   ]
 
   // 当前 MACD/RSI/KDJ 值
@@ -224,10 +246,10 @@ export default function StockAnalysis() {
         zIndex:       100,
       }}>
         <span style={{ fontWeight: 700, fontSize: 15, color: C.text, marginRight: 8, whiteSpace: 'nowrap' }}>
-          📈 AI 量化决策
+          📈 {stockDisplayName || 'AI 量化决策'}
         </span>
 
-        <StockSelector stocks={stocks} value={code} onChange={setCode} />
+        <StockSelector stocks={stocks} value={code} onChange={setCode} signals={watchlistSignals} />
         <PeriodSelector value={period} onChange={setPeriod} />
         <TimeRangeSelector
           start={startDate} end={endDate}

@@ -15,7 +15,7 @@ function fmt(v, d = 2) {
   return typeof v === 'number' ? v.toFixed(d) : String(v)
 }
 
-const colStyle = { padding: '10px 14px', fontSize: 13, borderBottom: '1px solid #21262d' }
+const colStyle = { padding: '10px 14px', fontSize: 13, borderBottom: '1px solid #21262d', textAlign: 'center' }
 const headStyle = {
   ...colStyle,
   background: '#161b22', color: '#8b949e', fontWeight: 600,
@@ -93,7 +93,7 @@ export default function WatchlistPage() {
         }}>
           <thead>
             <tr>
-              <th style={headStyle}>股票代码</th>
+              <th style={{ ...headStyle, textAlign: 'left' }}>股票</th>
               <th style={{ ...headStyle, textAlign: 'right' }}>最新价</th>
               <th style={{ ...headStyle, textAlign: 'right' }}>涨跌幅</th>
               <th style={headStyle}>RSI</th>
@@ -129,9 +129,18 @@ export default function WatchlistPage() {
                   onMouseEnter={e => e.currentTarget.style.background = '#161b22'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  {/* 股票代码 */}
-                  <td style={{ ...colStyle, fontWeight: 600, color: '#79c0ff' }}>
-                    {item.stock_code}
+                  {/* 股票名称 + 代码 */}
+                  <td style={{ ...colStyle, textAlign: 'left' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {item.name && (
+                        <span style={{ fontWeight: 700, fontSize: 13, color: '#e6edf3' }}>
+                          {item.name}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, color: '#79c0ff', fontFamily: 'monospace' }}>
+                        {item.stock_code}
+                      </span>
+                    </div>
                   </td>
 
                   {/* 最新价 */}
@@ -146,7 +155,7 @@ export default function WatchlistPage() {
 
                   {/* RSI */}
                   <td style={colStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       {rsiVal != null && (
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{rsiVal.toFixed(1)}</span>
                       )}

@@ -353,6 +353,74 @@ def cmd_export(args) -> None:
         sys.exit(1)
 
 
+def cmd_migrate(_args) -> None:
+    """
+    迁移数据库表结构并同步 watchlist 股票名称到 DB（幂等，无需 Futu 连接）。
+
+    两件事：
+    1. init_db()  — 建表 / ALTER TABLE 补列，兼容空库（首次安装）和旧库（升级）
+    2. 读取 watchlist.json，将所有股票（含 name 字段）upsert 到 stocks 表
+       · 仅做 upsert，不执行停用/差异检测（避免无 Futu 连接时产生副作用）
+       · watchlist.json 不存在时跳过步骤 2，仅做表结构迁移
+
+    适合在 deploy.sh / start.sh 中调用。
+    """
+    setup_logging()
+    logger = logging.getLogger("main.migrate")
+
+    # ── 1. 表结构迁移 ────────────────────────────────────────────────
+    logger.info("Running DB schema migration: %s", DB_PATH)
+    init_db(DB_PATH)
+    logger.info("DB schema migration complete")
+
+    # ── 2. watchlist 股票 upsert（含 name 字段） ─────────────────────
+    from config.settings import WATCHLIST_PATH
+    from db.repositories.stock_repo import StockRepository
+
+    if not os.path.exists(WATCHLIST_PATH):
+        logger.warning(
+            "watchlist.json not found at %s — skipping stock name sync (OK for fresh install)",
+            WATCHLIST_PATH,
+        )
+        return
+
+    try:
+        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load watchlist.json: %s — skipping stock name sync", e)
+        return
+
+    from models.stock import Stock as _Stock
+
+    stocks = []
+    for market_node in data.get("markets", []):
+        market = market_node.get("market", "")
+        market_enabled = bool(market_node.get("enabled", True))
+        for item in market_node.get("stocks", []):
+            try:
+                stock_active = bool(item.get("is_active", True))
+                stocks.append(_Stock(
+                    stock_code=item["stock_code"],
+                    market=market,
+                    asset_type=item["asset_type"],
+                    is_active=market_enabled and stock_active,
+                    lot_size=int(item.get("lot_size", 1)),
+                    currency=item["currency"],
+                    name=item.get("name"),
+                ))
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning("Invalid watchlist entry %s: %s", item, e)
+
+    if not stocks:
+        logger.warning("No valid stocks in watchlist.json — skipping upsert")
+        return
+
+    stock_repo = StockRepository(DB_PATH)
+    stock_repo.upsert_many(stocks)
+    logger.info("Stock upsert complete: %d stocks (name field synced)", len(stocks))
+
+
 def cmd_stats(_args) -> None:
     """打印各股票同步状态汇总（E3）。"""
     setup_logging()
@@ -444,6 +512,13 @@ def main() -> None:
         help=f"输出目录（默认 {EXPORT_DIR}）",
     )
     sub_export.set_defaults(func=cmd_export)
+
+    # 子命令：migrate
+    sub_migrate = subparsers.add_parser(
+        "migrate",
+        help="迁移 DB 表结构并同步 watchlist 股票名称（幂等，无需 Futu 连接）",
+    )
+    sub_migrate.set_defaults(func=cmd_migrate)
 
     # 子命令：stats
     sub_stats = subparsers.add_parser("stats", help="打印同步状态汇总")
