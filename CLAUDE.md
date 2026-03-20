@@ -134,6 +134,7 @@ tail -f logs/sync_$(date +%Y%m%d).log
     - `upsert_many` 中 `datetime('now')` 为 UTC，改为 `datetime('now', '+8 hours')` 修复 updated_at 时区问题 ✅
     - `deploy/start.sh` 未显式赋值 `WEB_HOST` 导致旧版脚本写死 `127.0.0.1`，无法局域网访问 ✅
 - [ ] 迭代6（待规划）：
+  - [ ] FEAT-version：主页面右上角展示版本号（如 `v0.5.6-patch`），与 git tag 保持一致。版本号通过 `.env` 或后端 `/api/health` 接口透传给前端，前端静态展示在导航栏右上角。
   - [ ] FEAT-repair：新增 `python main.py repair` 子命令，支持对指定股票/周期/日期强制 upsert 覆盖 K线数据。
     - 参数：`--stock`（可选，不传则修复所有关注股票）、`--date`（目标日期）、`--period`（1D/1W/1M，可多选，不传则修复全部）
     - 用户只需传业务日期，命令内部自动映射到对应的 trade_date：
