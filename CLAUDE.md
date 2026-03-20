@@ -134,6 +134,15 @@ tail -f logs/sync_$(date +%Y%m%d).log
     - `upsert_many` 中 `datetime('now')` 为 UTC，改为 `datetime('now', '+8 hours')` 修复 updated_at 时区问题 ✅
     - `deploy/start.sh` 未显式赋值 `WEB_HOST` 导致旧版脚本写死 `127.0.0.1`，无法局域网访问 ✅
 - [ ] 迭代6（待规划）：
+  - [ ] FEAT-repair：新增 `python main.py repair` 子命令，支持对指定股票/周期/日期强制 upsert 覆盖 K线数据。
+    - 参数：`--stock`（可选，不传则修复所有关注股票）、`--date`（目标日期）、`--period`（1D/1W/1M，可多选，不传则修复全部）
+    - 用户只需传业务日期，命令内部自动映射到对应的 trade_date：
+      - 1D：直接用指定日期
+      - 1W：trade_date 为该周最后一个交易日（港股=周五），需从指定日期推算所在周的周末日
+      - 1M：trade_date 为该月第一个交易日（实测规律），需从指定日期推算所在月的月初交易日
+    - 实现：复用 `SyncEngine._fetch_and_store`，对映射后的日期范围全部走 `upsert_many`，不改 `sync_metadata`
+    - 注意：盘中调用 1D 可获取当日半日数据（已验证）；1W 用 `start=today,end=today` 查询返回空，需用所在周的末日作为查询范围
+    - 已知数据规律（2026-03-20 实测）：1D `time_key[:10]=当天`，1W `trade_date=周末最后交易日`，1M `trade_date=月初第一交易日`
 
 ---
 
