@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.routes import indicators, kline, stocks, watchlist
-from config.settings import WEB_ACCESS_TOKEN
+from config.settings import WEB_ACCESS_TOKEN, APP_VERSION
 
 # ---------------------------------------------------------------------------
 # 应用初始化
@@ -117,8 +117,12 @@ app.include_router(indicators.router, prefix="/api")
 
 @app.get("/api/health", tags=["system"])
 def health():
-    """服务健康检查，返回 ok 和当前时间戳。"""
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    """服务健康检查，返回 ok、当前时间戳和版本号。"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": APP_VERSION,
+    }
 
 # ---------------------------------------------------------------------------
 # 生产模式：serve 前端构建产物

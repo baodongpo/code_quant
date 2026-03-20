@@ -21,7 +21,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchStocks, fetchKline, fetchWatchlistSummary } from '../api/client.js'
+import { fetchStocks, fetchKline, fetchWatchlistSummary, fetchHealth } from '../api/client.js'
 import StockSelector     from '../components/StockSelector.jsx'
 import PeriodSelector    from '../components/PeriodSelector.jsx'
 import TimeRangeSelector from '../components/TimeRangeSelector.jsx'
@@ -66,6 +66,7 @@ export default function StockAnalysis() {
   const [showMarkers,setShowMarkers]= useState(true)     // 标记点开关
   const [collapsed,  setCollapsed] = useState(loadCollapseState)  // 副图折叠状态
   const [watchlistSignals, setWatchlistSignals] = useState({})  // 各股综合信号
+  const [appVersion, setAppVersion] = useState(null)  // 系统版本号（FEAT-version）
 
   // 图表 refs（供 forwardRef + useChartSync 使用）
   const mainRef = useRef(null)
@@ -105,6 +106,17 @@ export default function StockAnalysis() {
         setWatchlistSignals(map)
       })
       .catch(e => console.warn('[StockSelector] watchlist 信号加载失败，颜色功能降级:', e.message))  // 不阻断主流程
+  }, [])
+
+  // 加载系统版本号（FEAT-version：页面初始化时调用一次 /api/health）
+  useEffect(() => {
+    fetchHealth()
+      .then(data => {
+        if (data?.version) setAppVersion(data.version)
+      })
+      .catch(() => {
+        // 静默降级：版本号区域不展示，不影响其他功能
+      })
   }, [])
 
   // 加载 K线+指标数据
@@ -290,6 +302,12 @@ export default function StockAnalysis() {
           >
             Watchlist总览 →
           </Link>
+          {/* 版本号（FEAT-version：从 /api/health 获取，静默降级） */}
+          {appVersion && (
+            <span style={{ fontSize: 11, color: C.textDim, userSelect: 'none', whiteSpace: 'nowrap' }}>
+              {appVersion}
+            </span>
+          )}
         </div>
       </div>
 
