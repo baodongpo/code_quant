@@ -155,18 +155,32 @@ class SyncEngine:
         meta = self._sync_meta_repo.get(stock_code, period)
         if force_full or meta is None:
             start_date = DEFAULT_HISTORY_START
+            logger.info("[%s][%s] start_date=%s (source=force_full/no_meta)", stock_code, period, start_date)
         elif is_reactivated and meta.get("first_sync_date"):
             start_date = meta["first_sync_date"]
+            logger.info(
+                "[%s][%s] start_date=%s (source=reactivated, first_sync_date=%s)",
+                stock_code, period, start_date, meta.get("first_sync_date")
+            )
         elif meta.get("last_sync_date"):
             last = meta["last_sync_date"]
             if last >= today:
                 # 上次已同步到今天（含盘中半日），本次仍从今天开始，确保当日数据被 upsert 覆盖
                 start_date = today
+                logger.info(
+                    "[%s][%s] start_date=%s (source=last_sync_date>=today, last_sync_date=%s, today=%s)",
+                    stock_code, period, start_date, last, today
+                )
             else:
                 y, m, d = last.split("-")
                 start_date = (date(int(y), int(m), int(d)) + timedelta(days=1)).strftime("%Y-%m-%d")
+                logger.info(
+                    "[%s][%s] start_date=%s (source=last_sync_date+1, last_sync_date=%s)",
+                    stock_code, period, start_date, last
+                )
         else:
             start_date = DEFAULT_HISTORY_START
+            logger.info("[%s][%s] start_date=%s (source=fallback/no_last_sync)", stock_code, period, start_date)
 
         # 强制回溯最近2个周期，确保最后几条数据被 upsert 覆盖
         # 全量/重激活场景不做回溯（start_date 本来就是最早起点）
@@ -176,11 +190,20 @@ class SyncEngine:
             if rollback_start < start_date:
                 fetch_start = rollback_start
                 logger.info(
-                    "Sync %s [%s]: rollback_start=%s (extended from %s), fetch_range=%s~%s",
+                    "[%s][%s] rollback_start=%s (extended from start_date=%s), fetch_range=%s~%s",
+                    stock_code, period, rollback_start, start_date, fetch_start, today
+                )
+            else:
+                logger.info(
+                    "[%s][%s] rollback_start=%s (no extension, rollback_start >= start_date=%s), fetch_range=%s~%s",
                     stock_code, period, rollback_start, start_date, fetch_start, today
                 )
         else:
             rollback_start = start_date
+            logger.info(
+                "[%s][%s] fetch_start=%s (no rollback, force_full=%s, is_reactivated=%s)",
+                stock_code, period, fetch_start, force_full, is_reactivated
+            )
 
         # 2a. 已是最新，跳过（1W/1M 末日推算可能超出今天）
         if fetch_start > today:
@@ -211,9 +234,14 @@ class SyncEngine:
         self._refresh_adjust_factors(stock_code)
 
         # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
+        _latest_date_arg = rollback_start if (not force_full and not is_reactivated) else today
+        logger.info(
+            "[%s][%s] calling _fetch_and_store: fetch_start=%s, end=%s, latest_date=%s",
+            stock_code, period, fetch_start, today, _latest_date_arg
+        )
         rows_fetched, rows_inserted = self._fetch_and_store(
             stock, period, fetch_start, today,
-            latest_date=rollback_start if (not force_full and not is_reactivated) else today
+            latest_date=_latest_date_arg
         )
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
@@ -292,9 +320,23 @@ class SyncEngine:
                 (today - timedelta(days=1)).strftime("%Y-%m-%d")  # 昨天及之前的交易日
             )
             if len(trading_days) >= 2:
-                return trading_days[-2]   # T-2：前2个交易日
+                result = trading_days[-2]   # T-2：前2个交易日
+                logger.debug(
+                    "[N/A][1D] calc_rollback_start: trading_days_count=%d, rollback_start=%s",
+                    len(trading_days), result
+                )
+                return result
             elif len(trading_days) >= 1:
-                return trading_days[-1]   # 兜底：只有1个交易日
+                result = trading_days[-1]   # 兜底：只有1个交易日
+                logger.debug(
+                    "[N/A][1D] calc_rollback_start: trading_days_count=%d, rollback_start=%s (fallback: only 1 day)",
+                    len(trading_days), result
+                )
+                return result
+            logger.debug(
+                "[N/A][1D] calc_rollback_start: trading_days_count=0, rollback_start=%s (fallback: no calendar)",
+                start_date
+            )
             return start_date             # 兜底：日历不足
 
         elif period == "1W":
@@ -302,7 +344,12 @@ class SyncEngine:
             this_monday = today - timedelta(days=today.weekday())  # 本周一
             last_monday = this_monday - timedelta(days=7)           # 上周一
             rollback = last_monday
-            return max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+            result = max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+            logger.debug(
+                "[N/A][1W] calc_rollback_start: today=%s, this_monday=%s, last_monday=%s, rollback=%s",
+                today, this_monday, last_monday, result
+            )
+            return result
 
         elif period == "1M":
             # 上个月1日
@@ -311,7 +358,12 @@ class SyncEngine:
             else:
                 last_month_first = date(today.year, today.month - 1, 1)
             rollback = last_month_first
-            return max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+            result = max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+            logger.debug(
+                "[N/A][1M] calc_rollback_start: today=%s, last_month_first=%s, rollback=%s",
+                today, last_month_first, result
+            )
+            return result
 
         else:
             return start_date
@@ -404,6 +456,10 @@ class SyncEngine:
         # rows_inserted 仅统计有效行写入数；invalid_bars 写入量见上方 WARNING 日志
         if latest_date is None:
             # 兼容旧路径：全部 INSERT OR IGNORE
+            logger.debug(
+                "[%s][%s] insert_many (legacy, no latest_date): %d bar(s)",
+                stock_code, period, len(valid_bars),
+            )
             rows_inserted = self._kline_repo.insert_many(valid_bars)
         else:
             # 区分历史日期与最新交易日，分别使用不同写入策略
@@ -411,12 +467,26 @@ class SyncEngine:
             latest_bars  = [b for b in valid_bars if b.trade_date >= latest_date]
             rows_inserted = 0
             if history_bars:
+                logger.debug(
+                    "[%s][%s] insert_many (history): %d bar(s), date_range=%s~%s",
+                    stock_code, period, len(history_bars),
+                    history_bars[0].trade_date if history_bars else "N/A",
+                    history_bars[-1].trade_date if history_bars else "N/A",
+                )
                 rows_inserted += self._kline_repo.insert_many(history_bars)
             if latest_bars:
                 rows_inserted += self._kline_repo.upsert_many(latest_bars)
-                logger.debug(
-                    "Upserted %d bar(s) for %s [%s] on latest_date=%s",
-                    len(latest_bars), stock_code, period, latest_date,
+                logger.info(
+                    "[%s][%s] upsert_many: %d bar(s), trade_dates=%s, latest_date_threshold=%s",
+                    stock_code, period, len(latest_bars),
+                    [b.trade_date for b in latest_bars],
+                    latest_date,
+                )
+            else:
+                logger.info(
+                    "[%s][%s] latest_bars=[] (no bar >= latest_date=%s), upsert skipped. "
+                    "All %d valid bars are history.",
+                    stock_code, period, latest_date, len(history_bars),
                 )
         return rows_fetched, rows_inserted
 

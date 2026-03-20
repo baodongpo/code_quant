@@ -51,6 +51,11 @@ class KlineFetcher:
         all_bars: List[KlineBar] = []
         page_req_key: Optional[str] = None
 
+        logger.info(
+            "[%s][%s] API request start: start_date=%s, end_date=%s",
+            stock_code, period, start_date, end_date
+        )
+
         while True:
             bars, next_key = self._fetch_one_page_with_retry(
                 stock_code, kl_type, period, start_date, end_date, page_req_key
@@ -66,6 +71,18 @@ class KlineFetcher:
                 break
             page_req_key = next_key
 
+        if all_bars:
+            logger.info(
+                "[%s][%s] API request done: total_bars=%d, first_trade_date=%s, last_trade_date=%s",
+                stock_code, period, len(all_bars),
+                all_bars[0].trade_date,
+                all_bars[-1].trade_date,
+            )
+        else:
+            logger.info(
+                "[%s][%s] API request done: total_bars=0 (empty response)",
+                stock_code, period
+            )
         return all_bars
 
     def _fetch_one_page_with_retry(
@@ -85,6 +102,12 @@ class KlineFetcher:
         """
         for attempt in range(max_retries + 1):
             self._rate_limiter.acquire()
+            logger.debug(
+                "[%s][%s] requesting page (attempt=%d, page_req_key=%s): start=%s, end=%s",
+                stock_code, period, attempt + 1,
+                "first" if page_req_key is None else "continued",
+                start, end
+            )
             ret, data, next_key = self._client.ctx.request_history_kline(
                 code=stock_code,
                 start=start,

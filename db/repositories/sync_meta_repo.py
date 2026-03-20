@@ -1,6 +1,9 @@
+import logging
 from typing import List, Optional
 from db.connection import DBConnection
 from models.enums import SyncStatus
+
+logger = logging.getLogger(__name__)
 
 
 class SyncMetaRepository:
@@ -62,6 +65,12 @@ class SyncMetaRepository:
                 stock_code, period, status, last_sync_date, first_sync_date,
                 rows_fetched, rows_inserted, error_message
             ))
+            logger.debug(
+                "[sync_metadata] UPSERT: stock=%s, period=%s, status=%s, "
+                "last_sync_date=%s, rows_fetched=%d, rows_inserted=%d",
+                stock_code, period, status,
+                last_sync_date, rows_fetched, rows_inserted
+            )
 
     def set_status(self, stock_code: str, period: str, status: str) -> None:
         sql = """
@@ -70,6 +79,10 @@ class SyncMetaRepository:
         """
         with DBConnection(self._db_path) as conn:
             conn.execute(sql, (status, stock_code, period))
+            logger.debug(
+                "[sync_metadata] UPDATE status: stock=%s, period=%s → %s",
+                stock_code, period, status
+            )
 
     def get_all_by_status(self, status: str) -> List[dict]:
         """返回所有符合指定 sync_status 的记录列表。"""

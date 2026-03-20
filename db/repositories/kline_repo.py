@@ -1,6 +1,9 @@
+import logging
 from typing import List, Optional, Set
 from db.connection import DBConnection
 from models.kline import KlineBar
+
+logger = logging.getLogger(__name__)
 
 
 class KlineRepository:
@@ -18,7 +21,12 @@ class KlineRepository:
         with DBConnection(self._db_path) as conn:
             before = conn.total_changes
             conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
-            return conn.total_changes - before
+            actual_changes = conn.total_changes - before
+            logger.debug(
+                "[kline_data] INSERT OR IGNORE: submitted=%d bars, affected=%d rows",
+                len(bars), actual_changes,
+            )
+            return actual_changes
 
     def upsert_many(self, bars: List[KlineBar]) -> int:
         """INSERT OR REPLACE：实时推送更新当日 bar 用。返回受影响行数（含 UPDATE）。"""
@@ -46,7 +54,12 @@ class KlineRepository:
         with DBConnection(self._db_path) as conn:
             before = conn.total_changes
             conn.executemany(sql, [self._bar_to_tuple(b) for b in bars])
-            return conn.total_changes - before
+            actual_changes = conn.total_changes - before
+            logger.debug(
+                "[kline_data] INSERT OR REPLACE (upsert): submitted=%d bars, affected=%d rows",
+                len(bars), actual_changes,
+            )
+            return actual_changes
 
     def get_dates_in_range(
         self, stock_code: str, period: str, start_date: str, end_date: str
