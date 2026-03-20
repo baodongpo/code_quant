@@ -429,3 +429,47 @@ class SyncEngine:
         此处直接调用，无需外层 execute_with_retry 包装。
         """
         return self._kline_fetcher.fetch(stock_code, period, start_date, end_date)
+
+    def repair_one(
+        self,
+        stock: Stock,
+        period: str,
+        fetch_start: str,
+        fetch_end: str,
+    ) -> Tuple[int, int]:
+        """
+        强制 upsert 覆盖指定区间的 K 线数据。
+
+        与 _fetch_and_store 的区别：
+        - 所有数据（包括历史日期）全部走 upsert_many（覆盖写）
+        - 不区分 latest_date，不更新 sync_metadata
+
+        Returns:
+            (rows_fetched, rows_upserted)
+        """
+        stock_code = stock.stock_code
+        bars = self._fetch_klines_paged(stock_code, period, fetch_start, fetch_end)
+
+        rows_fetched = len(bars)
+        if not bars:
+            logger.info(
+                "repair_one %s [%s] %s~%s: no data returned from API",
+                stock_code, period, fetch_start, fetch_end
+            )
+            return 0, 0
+
+        valid_bars, invalid_bars = self._validator.validate_many(bars)
+        rows_upserted = 0
+        if valid_bars:
+            rows_upserted += self._kline_repo.upsert_many(valid_bars)
+        if invalid_bars:
+            self._kline_repo.upsert_many(invalid_bars)  # invalid 也覆盖写
+            logger.warning(
+                "%d invalid bars for %s [%s], upserted with is_valid=0",
+                len(invalid_bars), stock_code, period
+            )
+        logger.info(
+            "repair_one %s [%s] %s~%s: fetched=%d, upserted=%d",
+            stock_code, period, fetch_start, fetch_end, rows_fetched, rows_upserted
+        )
+        return rows_fetched, rows_upserted

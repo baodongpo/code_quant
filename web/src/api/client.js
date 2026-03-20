@@ -51,3 +51,9 @@ export async function fetchIndicators() {
   const res = await client.get('/api/indicators')
   return res.data.indicators
 }
+
+/** 获取健康检查状态（含版本号） */
+export async function fetchHealth() {
+  const res = await client.get('/api/health')
+  return res.data  // { status, timestamp, version }
+}
