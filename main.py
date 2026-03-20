@@ -519,7 +519,7 @@ def cmd_check_gaps(args) -> None:
     setup_logging_check_gaps()
     logger = logging.getLogger("main.check_gaps")
 
-    from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START
+    from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START, A_STOCK_CALENDAR_MARKET
     from db.repositories.calendar_repo import CalendarRepository
     from db.repositories.gap_repo import GapRepository
     from db.repositories.kline_repo import KlineRepository
@@ -585,22 +585,24 @@ def cmd_check_gaps(args) -> None:
         stock_gap_summary = []  # (period, n_gaps, reason)
 
         for period in periods:
-            try:
-                gaps = gap_detector.detect_gaps(
-                    stock_code=stock.stock_code,
-                    period=period,
-                    market=stock.market,
-                    start_date=DEFAULT_HISTORY_START,
-                    end_date=today_str,
-                )
-            except Exception as e:
-                # 日历缺失等情况，GapDetector 内部会 WARNING，这里再记一次
+            # P1-01 修复：日历缺失时 GapDetector 返回空列表而不抛异常，
+            # 必须在调用前主动检查，缺失则 WARNING + continue，避免误报 "no gaps"。
+            calendar_market = A_STOCK_CALENDAR_MARKET if stock.market == "A" else stock.market
+            if not calendar_repo.has_calendar(calendar_market, DEFAULT_HISTORY_START, today_str):
                 logger.warning(
-                    "  [%s] Trading calendar missing for %s [%s~%s], skipping gap detection. (%s)",
-                    period, stock.market, DEFAULT_HISTORY_START, today_str, e
+                    "  [%s] Trading calendar missing for %s [%s~%s], skipping gap detection.",
+                    period, calendar_market, DEFAULT_HISTORY_START, today_str
                 )
                 stock_gap_summary.append((period, 0, "calendar_missing"))
                 continue
+
+            gaps = gap_detector.detect_gaps(
+                stock_code=stock.stock_code,
+                period=period,
+                market=stock.market,
+                start_date=DEFAULT_HISTORY_START,
+                end_date=today_str,
+            )
 
             n_gaps = len(gaps)
 
@@ -679,16 +681,9 @@ def cmd_repair(args) -> None:
     setup_logging()
     logger = logging.getLogger("main.repair")
 
-    from config.settings import ALL_PERIODS, DEFAULT_HISTORY_START
+    from config.settings import ALL_PERIODS
 
     periods = args.period if args.period else ALL_PERIODS
-
-    logger.info("=" * 60)
-    logger.info(
-        "repair started. date=%s, periods=%s",
-        args.date, periods
-    )
-    logger.info("=" * 60)
 
     # 初始化数据库
     init_db(DB_PATH)
@@ -704,7 +699,7 @@ def cmd_repair(args) -> None:
 
     try:
         deps = build_dependencies(futu_client)
-        stock_repo = StockRepository(DB_PATH)
+        stock_repo = deps["stock_repo"]   # P2-02：直接用 deps 中的实例，避免重复实例化
         sync_engine: SyncEngine = deps["sync_engine"]
 
         # 确定修复股票列表
@@ -720,6 +715,14 @@ def cmd_repair(args) -> None:
             stocks_to_repair = [s for s in all_stocks if s.is_active]
 
         total_stocks = len(stocks_to_repair)
+
+        # P2-01：repair started 日志移到股票列表确定后，包含 stocks=N 字段
+        logger.info("=" * 60)
+        logger.info(
+            "repair started. date=%s, stocks=%d, periods=%s",
+            args.date, total_stocks, periods
+        )
+        logger.info("=" * 60)
 
         # 终端输出头部
         print("\n" + "=" * 64)
