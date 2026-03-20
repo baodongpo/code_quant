@@ -20,12 +20,6 @@ from models.stock import Stock
 
 logger = logging.getLogger(__name__)
 
-# 各周期回溯天数（日历天，覆盖2个完整周期；1D 使用交易日历精确查询，不在此表中）
-_LOOKBACK_DAYS = {
-    "1W": 14,   # 覆盖2周
-    "1M": 65,   # 覆盖2个月
-}
-
 
 class SyncEngine:
     """
@@ -278,25 +272,49 @@ class SyncEngine:
 
     def _calc_rollback_start(self, period: str, start_date: str, market: str) -> str:
         """
-        计算回溯覆盖起始日（往前2个周期）。
-        1D：查交易日历，精确取前2个交易日；日历不足时退化为 start_date。
-        1W/1M：日历天近似（14天/65天）。
+        计算回溯覆盖起始日。
+        覆盖规则（老板确认 2026-03-20）：
+          1D：当日 + 前2个交易日 → upsert_from = T-2（查交易日历精确计算）
+          1W：当周 + 上周 → upsert_from = 上周一
+          1M：当月 + 上个月 → upsert_from = 上个月1日
         """
-        calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
+        today = date.today()
 
         if period == "1D":
-            # 往前查30日历天的交易日，取倒数第2个
-            query_start = (date.fromisoformat(start_date) - timedelta(days=30)).strftime("%Y-%m-%d")
-            trading_days = self._calendar_repo.get_trading_days(calendar_market, query_start, start_date)
+            # 查交易日历，取 start_date 之前（含）往前第3个交易日 = T-2
+            # 注意：此处在 _ensure_calendar 之前调用，依赖上次 sync 已写入日历；
+            # force_full/is_reactivated 场景不走此分支，故首次 full_sync 无影响。
+            # 若日历缺失，则静默 fallback 至 start_date（不回溯，安全兜底）。
+            calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
+            query_start = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+            trading_days = self._calendar_repo.get_trading_days(
+                calendar_market, query_start,
+                (today - timedelta(days=1)).strftime("%Y-%m-%d")  # 昨天及之前的交易日
+            )
             if len(trading_days) >= 2:
-                return trading_days[-2]
-            return start_date  # 兜底：日历不足则不回溯
-        else:
-            days = _LOOKBACK_DAYS.get(period, 0)
-            if days == 0:
-                return start_date
-            rollback = date.fromisoformat(start_date) - timedelta(days=days)
+                return trading_days[-2]   # T-2：前2个交易日
+            elif len(trading_days) >= 1:
+                return trading_days[-1]   # 兜底：只有1个交易日
+            return start_date             # 兜底：日历不足
+
+        elif period == "1W":
+            # 上周一 = 本周一 - 7天
+            this_monday = today - timedelta(days=today.weekday())  # 本周一
+            last_monday = this_monday - timedelta(days=7)           # 上周一
+            rollback = last_monday
             return max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+
+        elif period == "1M":
+            # 上个月1日
+            if today.month == 1:
+                last_month_first = date(today.year - 1, 12, 1)
+            else:
+                last_month_first = date(today.year, today.month - 1, 1)
+            rollback = last_month_first
+            return max(rollback, date.fromisoformat(DEFAULT_HISTORY_START)).strftime("%Y-%m-%d")
+
+        else:
+            return start_date
 
     def _heal_gaps(
         self, stock: Stock, period: str, start_date: str, end_date: str
