@@ -12,7 +12,7 @@
 ## 当前状态
 
 - **迭代5已完成 + 热修复已发布**（2026-03-19），最新 tag `v0.5.1-fix`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代7（crosshair联动+VPA-Defender指标）✅
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **下一步**：待规划迭代8
 
@@ -133,16 +133,16 @@ tail -f logs/sync_$(date +%Y%m%d).log
     - sync `last_sync_date==today` 时 `start_date` 被推到 tomorrow 导致当日数据跳过（根本原因修复）✅
     - `upsert_many` 中 `datetime('now')` 为 UTC，改为 `datetime('now', '+8 hours')` 修复 updated_at 时区问题 ✅
     - `deploy/start.sh` 未显式赋值 `WEB_HOST` 导致旧版脚本写死 `127.0.0.1`，无法局域网访问 ✅
-- [ ] 迭代6（待规划）：
-  - [ ] FEAT-version：主页面右上角展示版本号（如 `v0.5.6-patch`），与 git tag 保持一致。版本号通过 `.env` 或后端 `/api/health` 接口透传给前端，前端静态展示在导航栏右上角。
-  - [ ] FEAT-check-gaps：新增 `python main.py check-gaps` 子命令，独立空洞检测（只检测，不修复，修复仍由 sync 机制完成）。
+- [x] 迭代6（全部完成，tag v0.6.0）：
+  - [x] FEAT-version：主页面右上角展示版本号（如 `v0.5.6-patch`），与 git tag 保持一致。版本号通过 `.env` 或后端 `/api/health` 接口透传给前端，前端静态展示在导航栏右上角。
+  - [x] FEAT-check-gaps：新增 `python main.py check-gaps` 子命令，独立空洞检测（只检测，不修复，修复仍由 sync 机制完成）。
     - 参数：`--stock`（可选，不传则检测全部关注股票）、`--period`（1D/1W/1M，可多选，不传则检测全部）
     - 检测范围：`DEFAULT_HISTORY_START` 至今，与 sync 保持一致
     - 检测结果写入独立日志文件 `logs/check_gaps_YYYYMMDD.log`，格式与 sync 日志统一
     - 日志需包含：每只股票每个周期的检测结论（无空洞 / 发现 N 条空洞 + 具体日期范围）、汇总统计（多少股票有空洞、共多少条）
     - 检测到空洞后将其持久化到 `data_gaps` 表（status=open），供下次 sync 自动修复
     - 标准输出同时打印汇总结果，方便运维直接看终端
-  - [ ] FEAT-repair：新增 `python main.py repair` 子命令，支持对指定股票/周期/日期强制 upsert 覆盖 K线数据。
+  - [x] FEAT-repair：新增 `python main.py repair` 子命令，支持对指定股票/周期/日期强制 upsert 覆盖 K线数据。
     - 参数：`--stock`（可选，不传则修复所有关注股票）、`--date`（目标日期）、`--period`（1D/1W/1M，可多选，不传则修复全部）
     - 用户只需传业务日期，命令内部自动映射到对应的 trade_date：
       - 1D：直接用指定日期
