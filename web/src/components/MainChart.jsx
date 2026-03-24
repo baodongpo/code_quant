@@ -176,9 +176,10 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
           end:         100,
         },
       ],
+      // 迭代8 BUG-align: 统一 left:60, right:60，去掉 containLabel
       grid: [
-        { left: 16, right: 16, top: 28,    height: '56%', containLabel: true },  // K线主图
-        { left: 16, right: 16, top: '74%', height: '16%', containLabel: true },  // 成交量
+        { left: 60, right: 60, top: 28,    height: '56%' },  // K线主图
+        { left: 60, right: 60, top: '74%', height: '16%' },  // 成交量
       ],
       xAxis: [
         {
@@ -197,16 +198,17 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
         },
       ],
       yAxis: [
+        // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
         {
           scale: true, gridIndex: 0,
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
-          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },
         },
         {
           scale: true, gridIndex: 1,
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
-          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },
           splitNumber: 2,
         },

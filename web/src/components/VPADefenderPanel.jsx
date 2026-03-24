@@ -6,6 +6,13 @@
  * 顶部信号标签展示最新一日的四象限状态。
  * [?] 新手解释浮层（默认隐藏，点击展开）。
  *
+ * 迭代8变更：
+ *   - BUG-emoji: 折叠/展开按钮字符统一为直接 Unicode 字符（∨/∧）
+ *   - BUG-vpa-color: 破位警示配色改为绿色（#2ea043）
+ *   - BUG-align: yAxis axisLabel 加 width:52, overflow:'truncate'
+ *   - FEAT-guide-icon: HELP_ITEMS 加 iconType，浮层图标与图例形状一致
+ *   - FEAT-collapse-btn: PanelInner 标题行移除折叠按钮（改由 ChartSidebar 统一渲染）
+ *
  * 规格（遵循迭代裁定规范）：
  *   - 面板高度 200px（与其他副图统一）
  *   - 独立 ECharts 实例
@@ -16,25 +23,27 @@
 import React, { useState, useMemo, forwardRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 import SignalTag from './SignalTag.jsx'
+import { LegendMark } from './ChartSidebar.jsx'
 import { C } from '../utils/colors.js'
 
 // 四象限信号配置
 const SIGNAL_CONFIG = {
   1: { emoji: '🟢', label: '共振主升浪', color: '#26a69a' },
   2: { emoji: '🟡', label: '顶背离预警', color: '#ffd54f' },
-  3: { emoji: '🔴', label: '破位警示',   color: '#ef5350' },
+  3: { emoji: '🟢', label: '破位警示',   color: '#2ea043' },  // 迭代8 BUG-vpa-color: 改为绿色
   4: { emoji: '⚪', label: '底部观察',   color: '#b0bec5' },
 }
 
 // 新手解释浮层内容（迭代4+ 裁定规范：不含任何买卖指令）
+// 迭代8 FEAT-guide-icon: 各条目加 iconType，与右侧图例形状保持一致
 const HELP_ITEMS = [
-  { color: '#ef5350', text: '<b>防守线（红色实线）</b>：基于价格波动幅度计算的动态参考线。它会随着价格创新高而自动上移，但绝不会下降。当价格跌破这条线时，意味着波动幅度已经超出了正常范围。' },
-  { color: '#42a5f5', text: '<b>OBV 能量潮（蓝色线）</b>：通过成交量的累计变化，观察资金的流入流出方向。当它持续上升时，说明伴随上涨的成交量大于伴随下跌的成交量。' },
-  { color: '#ffa726', text: '<b>OBV 均线（橙色虚线）</b>：OBV 的 20 日平均值，用来过滤单日波动噪音，判断资金流向的中期趋势。' },
-  { color: '#26a69a', text: '<b>绿色（共振主升浪）</b>：价格在防守线上方，且资金持续流入——量价配合良好' },
-  { color: '#ffd54f', text: '<b>黄色（顶背离预警）</b>：价格仍在防守线上方，但资金已开始流出——量价出现分歧' },
-  { color: '#ef5350', text: '<b>红色（破位警示）</b>：价格跌破防守线——趋势可能发生变化' },
-  { color: '#b0bec5', text: '<b>灰色（底部观察）</b>：价格在防守线下方，但资金开始流入——可能正在酝酿变化' },
+  { iconType: 'line',   color: '#ef5350', text: '<b>防守线（红色实线）</b>：基于价格波动幅度计算的动态参考线。它会随着价格创新高而自动上移，但绝不会下降。当价格跌破这条线时，意味着波动幅度已经超出了正常范围。' },
+  { iconType: 'line',   color: '#42a5f5', text: '<b>OBV 能量潮（蓝色线）</b>：通过成交量的累计变化，观察资金的流入流出方向。当它持续上升时，说明伴随上涨的成交量大于伴随下跌的成交量。' },
+  { iconType: 'dashed', color: '#ffa726', text: '<b>OBV 均线（橙色虚线）</b>：OBV 的 20 日平均值，用来过滤单日波动噪音，判断资金流向的中期趋势。' },
+  { iconType: 'dot',    color: '#26a69a', text: '<b>绿色（共振主升浪）</b>：价格在防守线上方，且资金持续流入——量价配合良好' },
+  { iconType: 'dot',    color: '#ffd54f', text: '<b>黄色（顶背离预警）</b>：价格仍在防守线上方，但资金已开始流出——量价出现分歧' },
+  { iconType: 'dot',    color: '#2ea043', text: '<b>绿色（破位警示）</b>：价格跌破防守线——趋势可能发生变化' },  // 迭代8 BUG-vpa-color: 改为绿色
+  { iconType: 'dot',    color: '#b0bec5', text: '<b>灰色（底部观察）</b>：价格在防守线下方，但资金开始流入——可能正在酝酿变化' },
 ]
 
 const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, vpaDefender, signal, collapsed, onToggle }, ref) {
@@ -87,7 +96,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
             padding:      '2px 8px',
           }}
           title="展开 VPA-Defender"
-        >\u2228</button>
+        >∨</button>
       </div>
     )
   }
@@ -200,7 +209,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
         {
           scale:     true,
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
-          axisLabel: { color: C.textMuted, fontSize: 10 },
+          axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },
         },
         // 右 Y 轴：OBV
@@ -210,6 +219,8 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
           axisLabel: {
             color:    C.textMuted,
             fontSize: 10,
+            width:    52,
+            overflow: 'truncate',
             formatter: (val) => {
               if (Math.abs(val) >= 1e8) return (val / 1e8).toFixed(1) + '\u4EBF'
               if (Math.abs(val) >= 1e4) return (val / 1e4).toFixed(0) + '\u4E07'
@@ -276,6 +287,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
   return (
     <div style={{ flex: 1, minWidth: 0, background: C.chartBg, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
       {/* 面板标题行 + [?] 新手解释浮层 */}
+      {/* 迭代8 FEAT-collapse-btn: 折叠按钮已移至 ChartSidebar，此处仅保留标题/信号/[?] */}
       <div style={{
         padding:    '8px 12px 0',
         display:    'flex',
@@ -312,24 +324,9 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
             lineHeight:   '18px',
           }}
         >?</button>
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            style={{
-              marginLeft:   'auto',
-              background:   'none',
-              border:       `1px solid ${C.border2}`,
-              borderRadius: 4,
-              color:        C.textMuted,
-              fontSize:     12,
-              cursor:       'pointer',
-              padding:      '2px 8px',
-            }}
-            title="折叠 VPA-Defender"
-          >{'\u2227'}</button>
-        )}
       </div>
       {/* [?] 新手解释浮层内容（默认隐藏，点击展开） */}
+      {/* 迭代8 FEAT-guide-icon: 图标按 iconType 渲染，与右侧图例形状一致 */}
       {showHelp && (
         <div style={{
           margin:       '6px 12px 0',
@@ -343,15 +340,9 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
           </div>
           {HELP_ITEMS.map((item, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.textMuted, lineHeight: 1.5, padding: '2px 0' }}>
-              <span style={{
-                width:        7,
-                height:       7,
-                borderRadius: '50%',
-                background:   item.color,
-                flexShrink:   0,
-                marginTop:    4,
-                display:      'inline-block',
-              }} />
+              <span style={{ flexShrink: 0, marginTop: 4, display: 'inline-flex', alignItems: 'center' }}>
+                <LegendMark type={item.iconType || 'dot'} color={item.color} />
+              </span>
               <span dangerouslySetInnerHTML={{ __html: item.text }} />
             </div>
           ))}

@@ -610,7 +610,25 @@ def cmd_check_gaps(args) -> None:
                 logger.info("  [%s] No gaps found.", period)
                 stock_gap_summary.append((period, 0, "ok"))
             else:
-                gap_strs = [f"{s}~{e}" for s, e in gaps]
+                # 迭代8 FEAT-check-gaps-log: 日期展示按周期转换（仅影响展示，不影响DB存储）
+                def _format_gap_date(date_str: str, period: str) -> str:
+                    """将空洞 trade_date 转为用户友好的展示日期。
+                    - 1D: 原样返回
+                    - 1W: 返回该周周一（date - timedelta(days=date.weekday())）
+                    - 1M: 返回该月第一天（YYYY-MM-01）
+                    """
+                    from datetime import datetime as _dt, timedelta as _td
+                    if period == '1D':
+                        return date_str
+                    if period == '1W':
+                        d = _dt.strptime(date_str, '%Y-%m-%d').date()
+                        monday = d - _td(days=d.weekday())
+                        return monday.strftime('%Y-%m-%d')
+                    if period == '1M':
+                        return date_str[:7] + '-01'
+                    return date_str
+
+                gap_strs = [f"{_format_gap_date(s, period)}~{_format_gap_date(e, period)}" for s, e in gaps]
                 logger.info(
                     "  [%s] Found %d gap(s): [%s]",
                     period, n_gaps, ", ".join(gap_strs)

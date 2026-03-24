@@ -256,7 +256,7 @@ export default function StockAnalysis() {
     { dotColor: '#ffa726', text: '<b>OBV 均线（橙色虚线）</b>：OBV 的 20 日平均值，用来过滤单日波动噪音，判断资金流向的中期趋势。' },
     { dotColor: '#26a69a', text: '<b>绿色（共振主升浪）</b>：价格在防守线上方，且资金持续流入——量价配合良好' },
     { dotColor: '#ffd54f', text: '<b>黄色（顶背离预警）</b>：价格仍在防守线上方，但资金已开始流出——量价出现分歧' },
-    { dotColor: '#ef5350', text: '<b>红色（破位警示）</b>：价格跌破防守线——趋势可能发生变化' },
+    { dotColor: '#2ea043', text: '<b>绿色（破位警示）</b>：价格跌破防守线——趋势可能发生变化' },  // 迭代8 BUG-vpa-color
     { dotColor: '#b0bec5', text: '<b>灰色（底部观察）</b>：价格在防守线下方，但资金开始流入——可能正在酝酿变化' },
   ]
 
@@ -453,6 +453,7 @@ export default function StockAnalysis() {
               <ChartSidebar
                 title="📶 MACD 趋势动能"
                 signal={signals.MACD}
+                onToggle={() => togglePanel('MACD')}
                 valueItems={[
                   latestDIF != null ? { label: 'DIF', value: latestDIF.toFixed(4), type: latestDIF > 0 ? 'bull' : 'bear' } : null,
                   latestDEA != null ? { label: 'DEA', value: latestDEA.toFixed(4), type: latestDEA > 0 ? 'bull' : 'bear' } : null,
@@ -485,6 +486,7 @@ export default function StockAnalysis() {
               <ChartSidebar
                 title="💪 RSI 超买超卖"
                 signal={signals.RSI}
+                onToggle={() => togglePanel('RSI')}
                 valueItems={rsiValue != null ? [
                   { label: 'RSI(14)', value: rsiValue.toFixed(2), type: rsiValue > 70 ? 'bear' : rsiValue < 30 ? 'bull' : 'neut' },
                 ] : []}
@@ -516,6 +518,7 @@ export default function StockAnalysis() {
               <ChartSidebar
                 title="🔀 KDJ 短线时机"
                 signal={signals.KDJ}
+                onToggle={() => togglePanel('KDJ')}
                 valueItems={[
                   latestK != null ? { label: 'K', value: latestK.toFixed(2), type: latestK > 80 ? 'bear' : latestK < 20 ? 'bull' : 'neut' } : null,
                   latestD != null ? { label: 'D', value: latestD.toFixed(2), type: latestD > 80 ? 'bear' : latestD < 20 ? 'bull' : 'neut' } : null,
@@ -549,6 +552,7 @@ export default function StockAnalysis() {
               <ChartSidebar
                 title="🛡️ VPA 量价共振防守"
                 signal={signals.VPA_DEFENDER}
+                onToggle={() => togglePanel('VPA')}
                 valueItems={[
                   latestStopLine != null ? { label: '防守线', value: latestStopLine.toFixed(2), type: 'neut' } : null,
                   latestOBV != null ? { label: 'OBV', value: Number(latestOBV).toLocaleString(), type: latestOBV > 0 ? 'bull' : latestOBV < 0 ? 'bear' : 'neut' } : null,

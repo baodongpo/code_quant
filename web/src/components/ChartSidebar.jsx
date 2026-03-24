@@ -2,7 +2,7 @@
  * components/ChartSidebar.jsx — 图表右侧固定说明栏（200px）
  *
  * 每个图表（主图 + MACD + RSI + KDJ）右侧紧贴的固定 200px 说明栏，
- * 始终可见，包含：当前指标值/信号标签 + HTML图例 + 可折叠解读浮层
+ * 始终可见，包含：当前指标值/信号标签 + HTML图例
  *
  * Props:
  *   title        - 面板标题（如 "📶 MACD 趋势动能"）
@@ -10,18 +10,19 @@
  *   signalLabel  - 信号文案（可选）
  *   valueItems   - Array<{ label, value, type? }>  指标当前值
  *   legendItems  - Array<{ color, type, label }>   HTML图例
- *   guideItems   - Array<{ dotType?, dotColor?, text }>  解读文案
+ *   guideItems   - Array<{ dotType?, dotColor?, text }> (保留接口，不再渲染)
+ *   onToggle     - 折叠回调（可选），传入时在右上角渲染折叠按钮（∧）
  *
- * FEAT-01：
- *   标题区右侧新增 [?] 图标按钮，点击切换 showGuide 状态（默认 false）。
- *   「📖 如何看这张图」区块仅在 showGuide=true 时渲染。
- *   每个 ChartSidebar 实例独立维护自己的展开/折叠状态。
+ * 迭代8变更：
+ *   - [?] 按钮 + guideItems 渲染逻辑已移除（统一迁移至各面板顶部）
+ *   - 新增 onToggle prop，当传入时在 Sidebar 右上角渲染折叠按钮
+ *   - position: relative 支持 absolute 折叠按钮定位
  *
  * 强制规范（CLAUDE.md 裁定）：
  *   guideItems 文案严禁包含任何买卖操作指令，只允许描述现象/机制。
- *   未来新增指标时同样必须补充 guideItems，且遵守此规范。
+ *   未来新增指标时同样必须补充各面板内部 HELP_ITEMS，且遵守此规范。
  */
-import React, { useState } from 'react'
+import React from 'react'
 import { C } from '../utils/colors.js'
 
 const SIGNAL_STYLE = {
@@ -30,22 +31,16 @@ const SIGNAL_STYLE = {
   neutral: { bg: C.neutralBg, border: C.neutralBorder, text: C.neutralText },
 }
 
-const DOT_COLOR = {
-  bull: C.buyText,
-  bear: C.sellText,
-  neut: C.neutralText,
-}
-
 export default function ChartSidebar({
   title,
   signal,
   signalLabel,
   valueItems = [],
   legendItems = [],
-  guideItems  = [],
+  guideItems  = [],  // deprecated：保留 prop 接口，不再渲染（说明浮层已迁至各面板顶部）
+  onToggle,
 }) {
   const sigStyle = SIGNAL_STYLE[signal] || SIGNAL_STYLE.neutral
-  const [showGuide, setShowGuide] = useState(false)
 
   return (
     <div style={{
@@ -60,31 +55,34 @@ export default function ChartSidebar({
       justifyContent: 'center',
       gap:            10,
       overflowY:      'auto',
+      position:       'relative',
     }}>
-      {/* 标题 + [?] 按钮 */}
+      {/* 折叠按钮（右上角，当 onToggle 存在时显示） */}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          style={{
+            position:     'absolute',
+            top:          8,
+            right:        8,
+            background:   'none',
+            border:       `1px solid ${C.border2}`,
+            borderRadius: 4,
+            color:        C.textMuted,
+            fontSize:     12,
+            cursor:       'pointer',
+            padding:      '2px 8px',
+          }}
+          title="折叠"
+        >∧</button>
+      )}
+
+      {/* 标题（[?] 按钮已移至各面板顶部，此处仅保留标题文字） */}
       {title && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: C.text, flex: 1 }}>
             {title}
           </span>
-          {guideItems.length > 0 && (
-            <button
-              onClick={() => setShowGuide(v => !v)}
-              title={showGuide ? '收起说明' : '展开指标说明'}
-              style={{
-                flexShrink:   0,
-                background:   showGuide ? C.accentBg : 'none',
-                border:       `1px solid ${showGuide ? C.accent : C.border2}`,
-                borderRadius: 4,
-                color:        showGuide ? C.accentText : C.textMuted,
-                fontSize:     11,
-                fontWeight:   600,
-                cursor:       'pointer',
-                padding:      '1px 6px',
-                lineHeight:   '18px',
-              }}
-            >?</button>
-          )}
         </div>
       )}
 
@@ -135,38 +133,15 @@ export default function ChartSidebar({
           ))}
         </div>
       )}
-
-      {/* 解读文案（仅 showGuide=true 时渲染） */}
-      {showGuide && guideItems.length > 0 && (
-        <>
-          <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '2px 0' }} />
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText }}>📖 如何看这张图</div>
-          {guideItems.map((item, i) => {
-            const dotColor = item.dotColor
-              || (item.dotType ? DOT_COLOR[item.dotType] : C.neutralText)
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.textMuted, lineHeight: 1.5, padding: '2px 0' }}>
-                <span style={{
-                  width:        7,
-                  height:       7,
-                  borderRadius: '50%',
-                  background:   dotColor,
-                  flexShrink:   0,
-                  marginTop:    4,
-                  display:      'inline-block',
-                }} />
-                <span dangerouslySetInnerHTML={{ __html: item.text }} />
-              </div>
-            )
-          })}
-        </>
-      )}
     </div>
   )
 }
 
-/** 图例色块渲染 */
-function LegendMark({ type, color }) {
+/**
+ * 图例色块渲染（named export，供各面板说明浮层 HELP_ITEMS 复用）
+ * 支持 type: 'line' | 'dashed' | 'circle' | 'bar' | 'dot'
+ */
+export function LegendMark({ type, color }) {
   if (type === 'line') {
     return <span style={{ width: 18, height: 2, background: color, borderRadius: 1, flexShrink: 0 }} />
   }
@@ -186,6 +161,18 @@ function LegendMark({ type, color }) {
       <span style={{
         width:        8,
         height:       8,
+        borderRadius: '50%',
+        background:   color,
+        flexShrink:   0,
+        display:      'inline-block',
+      }} />
+    )
+  }
+  if (type === 'dot') {
+    return (
+      <span style={{
+        width:        7,
+        height:       7,
         borderRadius: '50%',
         background:   color,
         flexShrink:   0,

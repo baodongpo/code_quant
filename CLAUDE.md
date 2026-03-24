@@ -158,7 +158,17 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] BUG-emoji：VPA-Defender [?]浮层标题 emoji 乱码（surrogate pair 转为直接 UTF-8 字符，同修 SIGNAL_CONFIG 四象限 emoji）✅
   - [x] FEAT-price-curve：VPA-Defender 副图新增收盘价曲线（灰色细线，左Y轴，与防守线共享坐标系，自适应展示两者波动趋势）✅
   - [x] FEAT-version-hardcode：版本号从 .env 迁移到代码 config/settings.py 硬编码（v0.7.1-patch），避免部署机配置文件不覆盖导致版本号停滞 ✅
-- [ ] 迭代8（待规划）：
+- [ ] 迭代8（UI 体验优化，进行中，PRD: docs/requirements_iter8.md v1.2）：
+  - [ ] BUG-emoji：VPA 折叠展开按钮乱码及写法规范统一（2行代码，P0）
+  - [ ] BUG-align：各图表 Y 轴与内容区横向宽度统一（grid.left/right=60 固定值，P0）
+  - [ ] BUG-vpa-color：VPA 破位警示颜色改为绿色（A股红涨绿跌规范，P1）
+  - [ ] FEAT-check-gaps-log：check-gaps 日志日期展示增强（1D/1W/1M 格式化，P1）
+  - [ ] FEAT-guide-top：说明浮层 [?] 统一移至各面板顶部（P1）
+  - [ ] FEAT-collapse-btn：折叠按钮统一移至 ChartSidebar 右上角（P1，依赖 FEAT-guide-top）
+  - [ ] FEAT-guide-icon：说明浮层图标形状与右侧图例保持一致（P1，依赖 FEAT-guide-top）
+- [ ] 迭代8.1-patch（待老板确认后规划）：
+  - [ ] FEAT-resistance：VPA 副图新增空仓阻力线指标（追踪最低价上方 ATR 倍数，只降不升；与防守线对称；后端约15行+API透传+前端橙黄曲线；2026-03-24 PM评估：算法清晰、实现低复杂度，延期原因为迭代8范围已锁定为纯前端UI优化，详见 docs/requirements_iter8.md §七）
+  - [ ] FEAT-legend-toggle：ChartSidebar 图例条目升级为可点击按钮，点击切换对应 ECharts series 曲线显示/隐藏（inactive=删除线+半透明；通过 dispatchAction 控制；折叠展开状态保持；仅前端改动；详见 docs/requirements_iter8.md §八）
 
 ---
 

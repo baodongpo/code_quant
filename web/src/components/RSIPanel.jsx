@@ -8,20 +8,25 @@
  *   - 30/70 参考线（水平虚线）
  *   - 右侧侧边说明栏（由父组件 ChartSidebar 提供）
  *
- * v3.5 变更：
- *   - 高度 140 → 200px
- *   - 移除 inside dataZoom，保留 slider
- *   - 移除 ECharts 内置 legend
- *   - 区域背景色修正：超买区=绿底（卖出信号），超卖区=红底（买入信号）
- *   - 参考线颜色：超买参考线绿，超卖参考线红
- *   - 支持折叠（collapsed prop）
- *   - 改为 forwardRef
- *   - 配色统一引用 colors.js
+ * 迭代8变更：
+ *   - BUG-align: grid 改为 left:60, right:60，去掉 containLabel，yAxis axisLabel 加 width:52
+ *   - FEAT-guide-top: 新增 [?] 按钮 + showHelp 状态 + HELP_ITEMS 说明浮层
+ *   - FEAT-collapse-btn: PanelInner 标题行移除折叠按钮（改由 ChartSidebar 统一渲染）
+ *   - FEAT-guide-icon: HELP_ITEMS 各条目含 iconType，图标与图例形状一致
  */
-import React, { useMemo, forwardRef } from 'react'
+import React, { useState, useMemo, forwardRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 import SignalTag from './SignalTag.jsx'
+import { LegendMark } from './ChartSidebar.jsx'
 import { C } from '../utils/colors.js'
+
+// 说明浮层内容（迭代8 FEAT-guide-top + FEAT-guide-icon）
+const HELP_ITEMS = [
+  { iconType: 'line', color: C.dif,  text: '<b>RSI 曲线</b>：相对强弱指数，衡量一段时间内价格上涨与下跌力量的比例，取值范围 0~100。' },
+  { iconType: 'bar',  color: C.sell, text: '<b>超买区（RSI &gt; 70，绿色区域）</b>：价格短期涨幅较大，动能偏强，上涨速度可能放缓。' },
+  { iconType: 'bar',  color: C.buy,  text: '<b>超卖区（RSI &lt; 30，红色区域）</b>：价格短期跌幅较大，动能偏弱，下跌速度可能放缓。' },
+  { iconType: 'dot',  color: C.neutralText, text: '<b>中性区间（30~70）</b>：多空力量相对均衡，价格波动在正常范围内，无明显趋势偏向。' },
+]
 
 const RSIPanel = forwardRef(function RSIPanel({ dates, rsi, signal, collapsed, onToggle }, ref) {
   const rsi14 = rsi?.RSI14 || []
@@ -75,6 +80,8 @@ const RSIPanel = forwardRef(function RSIPanel({ dates, rsi, signal, collapsed, o
 })
 
 const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, onToggle }, ref) {
+  const [showHelp, setShowHelp] = useState(false)
+
   const option = useMemo(() => {
     if (!dates || dates.length === 0) return {}
 
@@ -120,7 +127,8 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
           end:         100,
         },
       ],
-      grid: [{ left: 16, right: 16, top: 20, bottom: 28, containLabel: true }],
+      // 迭代8 BUG-align: 统一 left:60, right:60，去掉 containLabel
+      grid: [{ left: 60, right: 60, top: 20, bottom: 28 }],
       xAxis: [{
         type: 'category', data: dates,
         axisLine:  { lineStyle: { color: C.axisLine } },
@@ -128,11 +136,13 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
         axisTick:  { lineStyle: { color: C.axisLine } },
         splitLine: { show: false },
       }],
+      // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
       yAxis: [{
         min: 0, max: 100,
         splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
         axisLabel: {
           color: C.textMuted, fontSize: 10,
+          width: 52, overflow: 'truncate',
           formatter: v => v === 70 ? '超买70' : v === 30 ? '超卖30' : v,
         },
         axisLine: { lineStyle: { color: C.axisLine } },
@@ -177,7 +187,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
 
   return (
     <div style={{ flex: 1, minWidth: 0, background: C.chartBg, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      {/* 面板标题行（外部 HTML 标题，避免与图表内容重叠） */}
+      {/* 面板标题行（迭代8 FEAT-collapse-btn: 折叠按钮已移至 ChartSidebar，仅保留标题/信号/[?]） */}
       <div style={{
         padding:    '8px 12px 0',
         display:    'flex',
@@ -185,23 +195,46 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
         gap:        6,
       }}>
         <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>RSI(14)</span>
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            style={{
-              marginLeft:   'auto',
-              background:   'none',
-              border:       `1px solid ${C.border2}`,
-              borderRadius: 4,
-              color:        C.textMuted,
-              fontSize:     12,
-              cursor:       'pointer',
-              padding:      '2px 8px',
-            }}
-            title="折叠 RSI"
-          >∧</button>
-        )}
+        {/* 迭代8 FEAT-guide-top: 新增 [?] 说明浮层按钮 */}
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          title={showHelp ? '收起说明' : '展开指标说明'}
+          style={{
+            flexShrink:   0,
+            background:   showHelp ? C.accentBg : 'none',
+            border:       `1px solid ${showHelp ? C.accent : C.border2}`,
+            borderRadius: 4,
+            color:        showHelp ? C.accentText : C.textMuted,
+            fontSize:     11,
+            fontWeight:   600,
+            cursor:       'pointer',
+            padding:      '1px 6px',
+            lineHeight:   '18px',
+          }}
+        >?</button>
       </div>
+      {/* 迭代8 FEAT-guide-top: 说明浮层（默认隐藏，点击 [?] 展开） */}
+      {showHelp && (
+        <div style={{
+          margin:       '6px 12px 0',
+          padding:      10,
+          background:   C.panelBg,
+          borderRadius: 8,
+          border:       `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText, marginBottom: 6 }}>
+            📖 RSI 超买超卖指标
+          </div>
+          {HELP_ITEMS.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.textMuted, lineHeight: 1.5, padding: '2px 0' }}>
+              <span style={{ flexShrink: 0, marginTop: 4, display: 'inline-flex', alignItems: 'center' }}>
+                <LegendMark type={item.iconType || 'dot'} color={item.color} />
+              </span>
+              <span dangerouslySetInnerHTML={{ __html: item.text }} />
+            </div>
+          ))}
+        </div>
+      )}
       <ReactECharts
         ref={ref}
         option={option}

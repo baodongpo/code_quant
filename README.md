@@ -681,6 +681,8 @@ code_quant/
 | [迭代4需求](docs/requirements_iter4.md) | 迭代4 PRD（Bug修复/指标说明浮层/迁移工具）|
 | [迭代5需求](docs/requirements_iter5.md) | 迭代5 PRD（稳定性加固/局域网鉴权/Tooltip增强）|
 | [迭代6需求](docs/requirements_iter6.md) | 迭代6 PRD（版本号/check-gaps/repair）|
+| [迭代7需求](docs/requirements_iter7.md) | 迭代7 PRD（crosshair联动/VPA-Defender指标）|
+| [迭代8需求](docs/requirements_iter8.md) | 迭代8 PRD（UI对齐/说明浮层/折叠按钮/check-gaps日志）|
 | [系统设计](docs/design.md) | 迭代1/2 详细设计 |
 | [迭代3设计](docs/design_iter3.md) | 迭代3 详细设计（技术选型/API/前端架构）|
 | [部署指南](deploy/README.md) | systemd 服务配置与部署 |
@@ -697,4 +699,8 @@ code_quant/
 | 迭代3.5 | ✅ 已完成 | Web 界面优化（综合信号横幅、买卖标记、红涨绿跌配色、跨图联动）|
 | 迭代4 | ✅ 已完成 | Bug 修复、指标新手说明浮层、`migrate` 子命令、交易日历修复 |
 | 迭代5 | ✅ 已完成（v0.5.1-fix）| upsert 覆盖写、Tooltip 数据更新时间、信号分组下拉、局域网 Token 鉴权 |
-| 迭代6 | 🚧 进行中 | 版本号展示（FEAT-version）、`check-gaps` 子命令、`repair` 子命令 |
+| 迭代6 | ✅ 已完成 | 版本号展示（FEAT-version）、`check-gaps` 子命令、`repair` 子命令 |
+| 迭代7 | ✅ 已完成 | crosshair 十字线联动优化、VPA-Defender 量价共振防守指标 |
+| 迭代0.7.1-patch | ✅ 已完成 | VPA emoji 修复、收盘价曲线、版本号硬编码至代码 |
+| 迭代8 | ✅ 已完成 | UI 对齐优化（Y轴）、说明浮层重构、折叠按钮重构、check-gaps 日志增强、VPA 配色修正、说明图标统一 |
+| 迭代8.1-patch | 🚧 进行中 | 空仓阻力线指标（FEAT-resistance）、图例按钮化（FEAT-legend-toggle）|

@@ -7,20 +7,28 @@
  *   - 金叉/死叉圆形标记（symbolSize=10，「金叉」/「死叉」16px加粗）
  *   - 右侧侧边说明栏（由父组件 ChartSidebar 提供）
  *
- * v3.5 变更：
- *   - 高度 140 → 200px
- *   - 移除 inside dataZoom，保留 slider
- *   - 移除 ECharts 内置 legend
- *   - 标记点改为圆形（circle）：金叉红圈/死叉绿圈（遵循红买绿卖）
- *   - 标记文字「金叉」/「死叉」，16px加粗
- *   - 支持折叠（collapsed prop）
- *   - 改为 forwardRef，暴露 ECharts 实例
- *   - 配色统一引用 colors.js
+ * 迭代8变更：
+ *   - BUG-align: grid 改为 left:60, right:60，去掉 containLabel，yAxis axisLabel 加 width:52
+ *   - FEAT-guide-top: 新增 [?] 按钮 + showHelp 状态 + HELP_ITEMS 说明浮层
+ *   - FEAT-collapse-btn: PanelInner 标题行移除折叠按钮（改由 ChartSidebar 统一渲染）
+ *   - FEAT-guide-icon: HELP_ITEMS 各条目含 iconType，图标与图例形状一致
  */
-import React, { useMemo, forwardRef } from 'react'
+import React, { useState, useMemo, forwardRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 import SignalTag from './SignalTag.jsx'
+import { LegendMark } from './ChartSidebar.jsx'
 import { C } from '../utils/colors.js'
+
+// 说明浮层内容（迭代8 FEAT-guide-top + FEAT-guide-icon）
+// iconType: 'line'|'dashed'|'circle'|'bar'|'dot'，与右侧 ChartSidebar 图例形状对应
+const HELP_ITEMS = [
+  { iconType: 'line',   color: C.dif,        text: '<b>DIF 线</b>：短期（12日）与长期（26日）移动均线之差，反映短期趋势动能。DIF 持续上升说明短期涨势强于长期。' },
+  { iconType: 'line',   color: C.dea,        text: '<b>DEA 线</b>：DIF 的 9 日平均，平滑了 DIF 的波动，用于辅助判断趋势方向。' },
+  { iconType: 'bar',    color: C.macdBarPos, text: '<b>MACD 柱（正）</b>：DIF 在 DEA 上方时柱为正值（红色），说明短期动能强于长期。柱越高说明多头力量越强。' },
+  { iconType: 'bar',    color: C.macdBarNeg, text: '<b>MACD 柱（负）</b>：DIF 在 DEA 下方时柱为负值（绿色），说明短期动能弱于长期。柱越深说明空头力量越强。' },
+  { iconType: 'circle', color: C.buy,        text: '<b>红圈●金叉</b>：DIF 从下方穿越 DEA，短期动能由弱转强的信号。出现在低位时意义更大。' },
+  { iconType: 'circle', color: C.sell,       text: '<b>绿圈●死叉</b>：DIF 从上方穿越 DEA，短期动能由强转弱的信号。出现在高位时意义更大。' },
+]
 
 const MACDPanel = forwardRef(function MACDPanel({ dates, macd, signal, collapsed, onToggle }, ref) {
   const { dif = [], dea = [], macd: macdBar = [] } = macd || {}
@@ -72,6 +80,8 @@ const MACDPanel = forwardRef(function MACDPanel({ dates, macd, signal, collapsed
 })
 
 const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, macdBar, signal, onToggle }, ref) {
+  const [showHelp, setShowHelp] = useState(false)
+
   const option = useMemo(() => {
     if (!dates || dates.length === 0) return {}
 
@@ -165,7 +175,8 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
           end:         100,
         },
       ],
-      grid: [{ left: 16, right: 16, top: 20, bottom: 28, containLabel: true }],
+      // 迭代8 BUG-align: 统一 left:60, right:60，去掉 containLabel
+      grid: [{ left: 60, right: 60, top: 20, bottom: 28 }],
       xAxis: [{
         type: 'category', data: dates,
         axisLine:  { lineStyle: { color: C.axisLine } },
@@ -173,10 +184,11 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
         axisTick:  { lineStyle: { color: C.axisLine } },
         splitLine: { show: false },
       }],
+      // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
       yAxis: [{
         scale: true,
         splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
-        axisLabel: { color: C.textMuted, fontSize: 10 },
+        axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
         axisLine:  { lineStyle: { color: C.axisLine } },
       }],
       series: [
@@ -209,7 +221,7 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
 
   return (
     <div style={{ flex: 1, minWidth: 0, background: C.chartBg, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      {/* 面板标题行（外部 HTML 标题，避免与图表内容重叠） */}
+      {/* 面板标题行（迭代8 FEAT-collapse-btn: 折叠按钮已移至 ChartSidebar，仅保留标题/信号/[?]） */}
       <div style={{
         padding:    '8px 12px 0',
         display:    'flex',
@@ -217,23 +229,46 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
         gap:        6,
       }}>
         <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>MACD(12,26,9)</span>
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            style={{
-              marginLeft:   'auto',
-              background:   'none',
-              border:       `1px solid ${C.border2}`,
-              borderRadius: 4,
-              color:        C.textMuted,
-              fontSize:     12,
-              cursor:       'pointer',
-              padding:      '2px 8px',
-            }}
-            title="折叠 MACD"
-          >∧</button>
-        )}
+        {/* 迭代8 FEAT-guide-top: 新增 [?] 说明浮层按钮 */}
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          title={showHelp ? '收起说明' : '展开指标说明'}
+          style={{
+            flexShrink:   0,
+            background:   showHelp ? C.accentBg : 'none',
+            border:       `1px solid ${showHelp ? C.accent : C.border2}`,
+            borderRadius: 4,
+            color:        showHelp ? C.accentText : C.textMuted,
+            fontSize:     11,
+            fontWeight:   600,
+            cursor:       'pointer',
+            padding:      '1px 6px',
+            lineHeight:   '18px',
+          }}
+        >?</button>
       </div>
+      {/* 迭代8 FEAT-guide-top: 说明浮层（默认隐藏，点击 [?] 展开） */}
+      {showHelp && (
+        <div style={{
+          margin:       '6px 12px 0',
+          padding:      10,
+          background:   C.panelBg,
+          borderRadius: 8,
+          border:       `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText, marginBottom: 6 }}>
+            📖 MACD 趋势动能指标
+          </div>
+          {HELP_ITEMS.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.textMuted, lineHeight: 1.5, padding: '2px 0' }}>
+              <span style={{ flexShrink: 0, marginTop: 4, display: 'inline-flex', alignItems: 'center' }}>
+                <LegendMark type={item.iconType || 'dot'} color={item.color} />
+              </span>
+              <span dangerouslySetInnerHTML={{ __html: item.text }} />
+            </div>
+          ))}
+        </div>
+      )}
       <ReactECharts
         ref={ref}
         option={option}
