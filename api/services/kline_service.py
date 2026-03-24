@@ -103,6 +103,7 @@ def get_kline_with_indicators(
             "RSI":   indicator_result.RSI,
             "KDJ":   indicator_result.KDJ,
             "MAVOL": indicator_result.MAVOL,
+            "VPA_DEFENDER": indicator_result.VPA_DEFENDER,
         },
         "signals": indicator_result.signals,
     }

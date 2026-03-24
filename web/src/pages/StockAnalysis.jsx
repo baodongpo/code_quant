@@ -29,6 +29,7 @@ import MainChart         from '../components/MainChart.jsx'
 import MACDPanel         from '../components/MACDPanel.jsx'
 import RSIPanel          from '../components/RSIPanel.jsx'
 import KDJPanel          from '../components/KDJPanel.jsx'
+import VPADefenderPanel  from '../components/VPADefenderPanel.jsx'
 import BottomBar         from '../components/BottomBar.jsx'
 import SignalBanner      from '../components/SignalBanner.jsx'
 import ChartSidebar      from '../components/ChartSidebar.jsx'
@@ -44,13 +45,18 @@ function daysAgo(n) {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+// OBV 取最后一个值（OBV 数组全为数字，无 null）
+function obv_last_val(arr) {
+  return arr.length > 0 ? arr[arr.length - 1] : null
+}
+
 // 从 localStorage 读取折叠状态（可选持久化）
 function loadCollapseState() {
   try {
     const saved = localStorage.getItem('quant_panel_collapse_state')
     if (saved) return JSON.parse(saved)
   } catch (_) {}
-  return { MACD: false, RSI: false, KDJ: false }
+  return { MACD: false, RSI: false, KDJ: false, VPA: false }
 }
 
 export default function StockAnalysis() {
@@ -73,11 +79,12 @@ export default function StockAnalysis() {
   const macdRef = useRef(null)
   const rsiRef  = useRef(null)
   const kdjRef  = useRef(null)
+  const vpaRef  = useRef(null)
 
   const timerRef = useRef(null)
 
   // 跨图联动（主图十字线 → 副图同步；collapsed 变化时重绑定新 ECharts 实例）
-  useChartSync(mainRef, [macdRef, rsiRef, kdjRef], collapsed)
+  useChartSync(mainRef, [macdRef, rsiRef, kdjRef, vpaRef], collapsed)
 
   // 加载股票列表
   useEffect(() => {
@@ -159,6 +166,7 @@ export default function StockAnalysis() {
   const indicators = data?.indicators  || {}
   const signals    = data?.signals     || {}
   const dates      = bars.map(b => b.date)
+  const closes     = bars.map(b => b.close)
   const latestBar  = bars[bars.length - 1] || null
 
   // RSI 最新值
@@ -234,6 +242,29 @@ export default function StockAnalysis() {
     { dotType: 'bear', text: '<b>绿圈●死叉</b>：K 线从上方穿越 D 线，高位出现时反映短期超买后的动能回落' },
     { dotType: 'neut', text: 'J 线是 K/D 的放大版，超过 80 或低于 20 时波动往往加剧' },
   ]
+
+  // VPA-Defender 侧边栏配置（迭代7）
+  const vpaSidebarLegend = [
+    { color: '#8b949e', type: 'line',   label: '收盘价' },
+    { color: '#ef5350', type: 'line',   label: '防守线' },
+    { color: '#42a5f5', type: 'line',   label: 'OBV' },
+    { color: '#ffa726', type: 'dashed', label: 'OBV均线' },
+  ]
+  const vpaSidebarGuide = [
+    { dotColor: '#26a69a', text: '<b>防守线（红色实线）</b>：基于价格波动幅度计算的动态参考线。它会随着价格创新高而自动上移，但绝不会下降。当价格跌破这条线时，意味着波动幅度已经超出了正常范围。' },
+    { dotColor: '#42a5f5', text: '<b>OBV 能量潮（蓝色线）</b>：通过成交量的累计变化，观察资金的流入流出方向。当它持续上升时，说明伴随上涨的成交量大于伴随下跌的成交量。' },
+    { dotColor: '#ffa726', text: '<b>OBV 均线（橙色虚线）</b>：OBV 的 20 日平均值，用来过滤单日波动噪音，判断资金流向的中期趋势。' },
+    { dotColor: '#26a69a', text: '<b>绿色（共振主升浪）</b>：价格在防守线上方，且资金持续流入——量价配合良好' },
+    { dotColor: '#ffd54f', text: '<b>黄色（顶背离预警）</b>：价格仍在防守线上方，但资金已开始流出——量价出现分歧' },
+    { dotColor: '#ef5350', text: '<b>红色（破位警示）</b>：价格跌破防守线——趋势可能发生变化' },
+    { dotColor: '#b0bec5', text: '<b>灰色（底部观察）</b>：价格在防守线下方，但资金开始流入——可能正在酝酿变化' },
+  ]
+
+  // VPA-Defender 最新值
+  const vpaData = indicators?.VPA_DEFENDER || {}
+  const latestStopLine = (vpaData.stop_line || []).slice().reverse().find(v => v != null)
+  const latestOBV = obv_last_val(vpaData.obv || [])
+  const latestOBVMA = (vpaData.obv_ma20 || []).slice().reverse().find(v => v != null)
 
   // 当前 MACD/RSI/KDJ 值
   const latestDIF = (indicators?.MACD?.dif || []).slice().reverse().find(v => v != null)
@@ -380,7 +411,7 @@ export default function StockAnalysis() {
           {/* 副图折叠控制按钮组 */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: C.textDim }}>显示副图：</span>
-            {['MACD', 'RSI', 'KDJ'].map(panel => (
+            {['MACD', 'RSI', 'KDJ', 'VPA'].map(panel => (
               <button
                 key={panel}
                 onClick={() => togglePanel(panel)}
@@ -395,7 +426,7 @@ export default function StockAnalysis() {
                   transition:   'all 0.15s',
                 }}
               >
-                {panel === 'MACD' ? 'MACD 趋势动能' : panel === 'RSI' ? 'RSI 超买超卖' : 'KDJ 短线时机'}
+                {panel === 'MACD' ? 'MACD 趋势动能' : panel === 'RSI' ? 'RSI 超买超卖' : panel === 'KDJ' ? 'KDJ 短线时机' : 'VPA 量价共振'}
               </button>
             ))}
           </div>
@@ -496,6 +527,38 @@ export default function StockAnalysis() {
             </div>
           )}
 
+          {/* ④-D VPA-Defender 副图（迭代7） */}
+          {collapsed.VPA ? (
+            <VPADefenderPanel
+              dates={dates} closes={closes} vpaDefender={indicators.VPA_DEFENDER} signal={signals.VPA_DEFENDER}
+              collapsed={true} onToggle={() => togglePanel('VPA')}
+            />
+          ) : (
+            <div style={{
+              display:      'flex',
+              borderRadius: 10,
+              overflow:     'hidden',
+              border:       `1px solid ${C.border}`,
+              background:   C.chartBg,
+            }}>
+              <VPADefenderPanel
+                ref={vpaRef}
+                dates={dates} closes={closes} vpaDefender={indicators.VPA_DEFENDER} signal={signals.VPA_DEFENDER}
+                collapsed={false} onToggle={() => togglePanel('VPA')}
+              />
+              <ChartSidebar
+                title="🛡️ VPA 量价共振防守"
+                signal={signals.VPA_DEFENDER}
+                valueItems={[
+                  latestStopLine != null ? { label: '防守线', value: latestStopLine.toFixed(2), type: 'neut' } : null,
+                  latestOBV != null ? { label: 'OBV', value: Number(latestOBV).toLocaleString(), type: latestOBV > 0 ? 'bull' : latestOBV < 0 ? 'bear' : 'neut' } : null,
+                ].filter(Boolean)}
+                legendItems={vpaSidebarLegend}
+                guideItems={vpaSidebarGuide}
+              />
+            </div>
+          )}
+
         </div>
       ) : (
         !loading && (
@@ -520,7 +583,7 @@ export default function StockAnalysis() {
           flexDirection: 'column',
           gap: 12,
         }}>
-          {[500, 200, 200, 200].map((h, i) => (
+          {[500, 200, 200, 200, 200].map((h, i) => (
             <div key={i} style={{
               height:       h,
               borderRadius: 10,

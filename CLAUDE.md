@@ -11,8 +11,8 @@
 
 ## 当前状态
 
-- **迭代5已完成 + 热修复已发布**（2026-03-19），最新 tag `v0.5.1-fix`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅
+- **迭代7已完成 + 热修复 v0.7.1-patch**（2026-03-23），最新 tag `v0.7.1-patch`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **下一步**：待规划迭代8
 
@@ -154,6 +154,10 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代7（全部完成 2026-03-23，tag v0.7.0）：
   - [x] BUG-crosshair：K线主图与副图 hover 十字线纵轴全局联动（useChartSync.js 扩展双向 updateAxisPointer，虚线样式，mouseleave 隐藏，dataZoom 不回归）✅
   - [x] FEAT-vpa-defender：量价共振与动态防守系统（VPA-Defender）复合指标。后端 ATR/OBV/Stop_Line/四象限信号，API 透传，独立副图面板（200px），三曲线+信号色带+[?]新手浮层，不参与综合信号 ✅
+- [x] 迭代0.7.1-patch（2026-03-23）：
+  - [x] BUG-emoji：VPA-Defender [?]浮层标题 emoji 乱码（surrogate pair 转为直接 UTF-8 字符，同修 SIGNAL_CONFIG 四象限 emoji）✅
+  - [x] FEAT-price-curve：VPA-Defender 副图新增收盘价曲线（灰色细线，左Y轴，与防守线共享坐标系，自适应展示两者波动趋势）✅
+  - [x] FEAT-version-hardcode：版本号从 .env 迁移到代码 config/settings.py 硬编码（v0.7.1-patch），避免部署机配置文件不覆盖导致版本号停滞 ✅
 - [ ] 迭代8（待规划）：
 
 ---

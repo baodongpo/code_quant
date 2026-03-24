@@ -40,6 +40,7 @@ class IndicatorResult:
     RSI: Dict[str, List[Optional[float]]] = field(default_factory=dict)
     KDJ: Dict[str, List[Optional[float]]] = field(default_factory=dict)
     MAVOL: Dict[str, List[Optional[float]]] = field(default_factory=dict)
+    VPA_DEFENDER: Dict[str, list] = field(default_factory=dict)  # 迭代7：量价共振防守指标
     signals: Dict[str, str] = field(default_factory=dict)
 
 
@@ -283,6 +284,135 @@ class IndicatorEngine:
         return result
 
     # ------------------------------------------------------------------ #
+    #  VPA-Defender 量价共振指标方法（迭代7）
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def atr(
+        high: List[float],
+        low: List[float],
+        close: List[float],
+        period: int = 22,
+    ) -> List[Optional[float]]:
+        """
+        ATR（Average True Range，平均真实波幅）。
+        TR(i) = max(high-low, |high-prev_close|, |low-prev_close|)
+        ATR = SMA(TR, period)
+        前 period-1 个位置填 None。
+        """
+        size = len(close)
+        if size == 0:
+            return []
+
+        tr_list: List[float] = []
+        for i in range(size):
+            hl = high[i] - low[i]
+            if i == 0:
+                # 第一根 bar 没有前收盘价，TR = high - low
+                tr_list.append(hl)
+            else:
+                prev_close = close[i - 1]
+                hc = abs(high[i] - prev_close)
+                lc = abs(low[i] - prev_close)
+                tr_list.append(max(hl, hc, lc))
+
+        # SMA of TR
+        result: List[Optional[float]] = [None] * size
+        for i in range(period - 1, size):
+            window = tr_list[i - period + 1: i + 1]
+            result[i] = round(sum(window) / period, 6)
+        return result
+
+    @staticmethod
+    def obv(close: List[float], volume: List[int]) -> List[float]:
+        """
+        OBV（On-Balance Volume，能量潮）。
+        OBV(0) = 0
+        OBV(i) = OBV(i-1) + volume(i) if close(i) > close(i-1)
+        OBV(i) = OBV(i-1) - volume(i) if close(i) < close(i-1)
+        OBV(i) = OBV(i-1)             if close(i) == close(i-1)
+        """
+        size = len(close)
+        if size == 0:
+            return []
+
+        result: List[float] = [0.0]
+        for i in range(1, size):
+            if close[i] > close[i - 1]:
+                result.append(result[-1] + volume[i])
+            elif close[i] < close[i - 1]:
+                result.append(result[-1] - volume[i])
+            else:
+                result.append(result[-1])
+        return result
+
+    @classmethod
+    def calc_vpa_defender(
+        cls,
+        bars: List['KlineBar'],
+        atr_period: int = 22,
+        atr_multi: float = 3.0,
+        obv_ma_period: int = 20,
+    ) -> Dict[str, list]:
+        """
+        VPA-Defender 量价共振复合指标。
+        返回 { stop_line, obv, obv_ma20, signal } 四个等长序列。
+        """
+        if not bars:
+            return {"stop_line": [], "obv": [], "obv_ma20": [], "signal": []}
+
+        close = [b.close for b in bars]
+        high = [b.high for b in bars]
+        low = [b.low for b in bars]
+        volume = [b.volume for b in bars]
+        size = len(close)
+
+        # 1. ATR
+        atr_series = cls.atr(high, low, close, atr_period)
+
+        # 2. Stop_Line (Chandelier Exit, only-up)
+        # 全局累积最高收盘价 - atr_multi * ATR，确保止损线只升不降。
+        stop_line: List[Optional[float]] = [None] * size
+        running_max_close = close[0]
+        for i in range(size):
+            running_max_close = max(running_max_close, close[i])
+            if atr_series[i] is not None:
+                stop_line[i] = round(running_max_close - atr_multi * atr_series[i], 6)
+
+        # 确保 Stop_Line 只升不降
+        for i in range(1, size):
+            if stop_line[i] is not None and stop_line[i - 1] is not None:
+                if stop_line[i] < stop_line[i - 1]:
+                    stop_line[i] = stop_line[i - 1]
+
+        # 3. OBV
+        obv_series = cls.obv(close, volume)
+
+        # 4. OBV_MA20 (SMA of OBV，复用 cls.ma())
+        obv_ma_series = cls.ma(obv_series, obv_ma_period)
+
+        # 5. 四象限信号
+        signal_series: List[Optional[int]] = [None] * size
+        for i in range(size):
+            sl = stop_line[i]
+            om = obv_ma_series[i]
+            if sl is None or om is None:
+                continue  # 数据不足
+            c = close[i]
+            o = obv_series[i]
+            if c > sl:
+                signal_series[i] = 1 if o > om else 2
+            else:
+                signal_series[i] = 4 if o > om else 3
+
+        return {
+            "stop_line": stop_line,
+            "obv": obv_series,
+            "obv_ma20": obv_ma_series,
+            "signal": signal_series,
+        }
+
+    # ------------------------------------------------------------------ #
     #  信号判断方法
     # ------------------------------------------------------------------ #
 
@@ -436,6 +566,9 @@ class IndicatorEngine:
         # --- MAVOL ---
         mavol_result = cls.mavol(volume, (5, 10, 20))
 
+        # --- VPA-Defender（迭代7） ---
+        vpa_result = cls.calc_vpa_defender(bars)
+
         # --- 信号判断（取最新有效值）---
         latest_close = close[-1] if close else None
 
@@ -476,6 +609,16 @@ class IndicatorEngine:
             "mavol5": _last_valid(mavol_result.get("MAVOL5", [])),
         })
 
+        # VPA-Defender 信号（迭代7）：独立展示，不参与综合信号计算
+        vpa_signal_series = vpa_result.get("signal", [])
+        latest_vpa_signal = None
+        for v in reversed(vpa_signal_series):
+            if v is not None:
+                latest_vpa_signal = v
+                break
+        _vpa_map = {1: "bullish", 2: "neutral", 3: "bearish", 4: "neutral"}
+        vpa_signal_str = _vpa_map.get(latest_vpa_signal, "neutral")
+
         signals = {
             "BOLL":  boll_signal.value,
             "MACD":  macd_signal.value,
@@ -483,6 +626,7 @@ class IndicatorEngine:
             "KDJ":   kdj_signal.value,
             "MA":    ma_signal.value,
             "MAVOL": mavol_signal.value,
+            "VPA_DEFENDER": vpa_signal_str,
         }
 
         return IndicatorResult(
@@ -493,6 +637,7 @@ class IndicatorEngine:
             RSI=rsi_result,
             KDJ=kdj_result,
             MAVOL=mavol_result,
+            VPA_DEFENDER=vpa_result,
             signals=signals,
         )
 

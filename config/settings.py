@@ -76,6 +76,6 @@ WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")          # uvicorn 绑定地址，
 WEB_ACCESS_TOKEN = os.getenv("WEB_ACCESS_TOKEN", "")   # 访问 Token，留空不启用鉴权
 
 # ============================================================
-# 系统版本号（与 git tag 保持一致，在 .env 中手动维护）
+# 系统版本号（硬编码，随代码发布更新，不依赖 .env 配置文件）
 # ============================================================
-APP_VERSION = os.getenv("APP_VERSION", "dev")
+APP_VERSION = "v0.7.1-patch"

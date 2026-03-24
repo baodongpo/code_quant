@@ -46,5 +46,11 @@ def list_indicators():
                 "type":   "volume_overlay",
                 "params": {"periods": [5, 10, 20]},
             },
+            {
+                "name":   "VPA_DEFENDER",
+                "label":  "量价共振防守",
+                "type":   "panel",
+                "params": {"atr_period": 22, "atr_multi": 3.0, "obv_ma_period": 20},
+            },
         ]
     }
