@@ -703,4 +703,4 @@ code_quant/
 | 迭代7 | ✅ 已完成 | crosshair 十字线联动优化、VPA-Defender 量价共振防守指标 |
 | 迭代0.7.1-patch | ✅ 已完成 | VPA emoji 修复、收盘价曲线、版本号硬编码至代码 |
 | 迭代8 | ✅ 已完成 | UI 对齐优化（Y轴）、说明浮层重构、折叠按钮重构、check-gaps 日志增强、VPA 配色修正、说明图标统一 |
-| 迭代8.1-patch | 🚧 进行中 | 空仓阻力线指标（FEAT-resistance）、图例按钮化（FEAT-legend-toggle）|
+| 迭代8.1-patch | ✅ 已完成 | 空仓阻力线指标（FEAT-resistance）、图例按钮化（FEAT-legend-toggle）|
