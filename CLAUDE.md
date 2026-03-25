@@ -11,8 +11,8 @@
 
 ## 当前状态
 
-- **迭代8.3-feat 已完成**（2026-03-25），最新 tag `v0.8.3`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅
+- **迭代8.4-patch 已完成**（2026-03-25），最新 tag `v0.8.4-patch`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **下一步**：待规划下一迭代
 
@@ -176,6 +176,13 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] FEAT-axis-name：5个图表面板 Y 轴添加名称/单位标识（主图：元/万股，MACD：MACD，RSI：RSI，KDJ：KDJ，VPA左轴：元，VPA右轴：OBV橙色）✅
   - [x] FEAT-rsi-formatter-fix：RSI axisLabel formatter 中'超买70'/'超卖30'改为'超买'/'超卖'，避免 width:52 截断 ✅
   - [x] DOC-multi-axis-rule：VPADefenderPanel.jsx 顶部注释补充多轴策略规范（辅助指标→tooltip替代，主要指标→新建面板，禁止 offset 方案）✅
+- [x] 迭代8.4-patch（全部完成 2026-03-25，tag v0.8.4-patch）：
+  - [x] BUG-gap-weekly-monthly：周K/月K空洞检测日期格式不匹配导致误报
+    - 根因：富途API返回周K time_key 为周一、月K time_key 为每月第一天，但空洞检测使用每周/每月最后交易日
+    - 修复：新增 `calendar_repo.get_weekly_mondays()` 和 `get_monthly_first_days()` 方法，`gap_detector.py` 改用新方法
+  - [x] BUG-sync-gap-scope：sync 只检测增量范围内的空洞，无法修复历史空洞
+    - 根因：`_heal_gaps()` 的检测范围基于 `last_sync_date`，历史空洞超出范围
+    - 修复：`_heal_gaps()` 现在会修复 `data_gaps` 表中所有 `open` 状态的空洞（包括历史空洞）
 
 ---
 

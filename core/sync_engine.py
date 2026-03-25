@@ -371,10 +371,16 @@ class SyncEngine:
     def _heal_gaps(
         self, stock: Stock, period: str, start_date: str, end_date: str
     ) -> None:
-        """检测并修复数据空洞（空洞补填使用历史K线限频器）。"""
+        """
+        检测并修复数据空洞（空洞补填使用历史K线限频器）。
+        
+        FIX v0.8.4: 
+        - 检测增量范围内的新空洞并记录
+        - 修复 data_gaps 表中所有 open 状态的空洞（包括历史空洞）
+        """
         stock_code = stock.stock_code
 
-        # 检测新空洞并持久化（failed 的会被重置为 open）
+        # 1. 检测增量范围内的新空洞并持久化
         gaps = self._gap_detector.detect_gaps(
             stock_code=stock_code,
             period=period,
@@ -385,7 +391,7 @@ class SyncEngine:
         if gaps:
             self._gap_repo.upsert_gaps(stock_code, period, gaps)
 
-        # 处理所有 open 状态的空洞（含刚重置的 failed）
+        # 2. 处理所有 open 状态的空洞（含刚重置的 failed，以及历史空洞）
         open_gaps = self._gap_repo.get_open_gaps(stock_code, period)
         for gap in open_gaps:
             gap_id = gap["id"]

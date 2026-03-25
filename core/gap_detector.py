@@ -47,16 +47,17 @@ class GapDetector:
         calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
 
         # 根据周期获取基准交易日列表
+        # FIX: 周K使用周一、月K使用每月第一天，与富途API返回的 time_key 格式一致
         if period == "1D":
             trading_days = self._calendar_repo.get_trading_days(
                 calendar_market, start_date, end_date
             )
         elif period == "1W":
-            trading_days = self._calendar_repo.get_weekly_last_trading_days(
+            trading_days = self._calendar_repo.get_weekly_mondays(
                 calendar_market, start_date, end_date
             )
         elif period == "1M":
-            trading_days = self._calendar_repo.get_monthly_last_trading_days(
+            trading_days = self._calendar_repo.get_monthly_first_days(
                 calendar_market, start_date, end_date
             )
         else:

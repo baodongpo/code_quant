@@ -65,6 +65,53 @@ class CalendarRepository:
         all_days = self.get_trading_days(market, start_date, end_date)
         return self._last_of_period(all_days, period="month")
 
+    def get_weekly_mondays(
+        self, market: str, start_date: str, end_date: str
+    ) -> List[str]:
+        """
+        返回每周周一日期列表（用于周K空洞检测）。
+        
+        富途API返回的周K time_key 是周一，因此空洞检测也需要用周一作为基准。
+        只返回该周内有交易日的周一。
+        """
+        from datetime import date, timedelta
+        
+        all_days = self.get_trading_days(market, start_date, end_date)
+        if not all_days:
+            return []
+        
+        # 找出所有有交易日的周，返回对应的周一
+        weeks = set()
+        for trade_day in all_days:
+            d = date.fromisoformat(trade_day)
+            monday = d - timedelta(days=d.weekday())  # 该周的周一
+            weeks.add(monday)
+        
+        # 返回排序后的周一列表
+        return sorted([str(d) for d in weeks])
+
+    def get_monthly_first_days(
+        self, market: str, start_date: str, end_date: str
+    ) -> List[str]:
+        """
+        返回每月第一天日期列表（用于月K空洞检测）。
+        
+        富途API返回的月K time_key 是每月第一天，因此空洞检测也需要用第一天作为基准。
+        只返回该月内有交易日的月份。
+        """
+        all_days = self.get_trading_days(market, start_date, end_date)
+        if not all_days:
+            return []
+        
+        # 找出所有有交易日的月份，返回对应的第一天
+        months = set()
+        for trade_day in all_days:
+            first_day = trade_day[:7] + "-01"  # YYYY-MM-01
+            months.add(first_day)
+        
+        # 返回排序后的月第一天列表
+        return sorted(list(months))
+
     @staticmethod
     def _last_of_period(trading_days: List[str], period: str) -> List[str]:
         """从交易日列表中提取每周/每月的最后一个交易日。"""
