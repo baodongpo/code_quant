@@ -199,14 +199,20 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
       ],
       yAxis: [
         // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
+        // 迭代8.3 FEAT-axis-name: 新增价格轴名称
         {
           scale: true, gridIndex: 0,
+          name: '元', nameLocation: 'end', nameGap: 4,
+          nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },
         },
+        // 迭代8.3 FEAT-axis-name: 新增成交量轴名称
         {
           scale: true, gridIndex: 1,
+          name: '万股', nameLocation: 'end', nameGap: 4,
+          nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },

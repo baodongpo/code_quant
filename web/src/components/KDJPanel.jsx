@@ -187,8 +187,11 @@ const KDJPanelInner = forwardRef(function KDJPanelInner({ dates, K, D, J, signal
         splitLine: { show: false },
       }],
       // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
+      // 迭代8.3 FEAT-axis-name: 新增 KDJ 轴名称
       yAxis: [{
         min: -10, max: 110,
+        name: 'KDJ', nameLocation: 'end', nameGap: 4,
+        nameTextStyle: { color: C.textMuted, fontSize: 10 },
         splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
         axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
         axisLine:  { lineStyle: { color: C.axisLine } },

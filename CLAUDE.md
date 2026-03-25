@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **迭代8.2-patch 已完成**（2026-03-25），最新 tag `v0.8.2`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅
+- **迭代8.3-feat 已完成**（2026-03-25），最新 tag `v0.8.3`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **下一步**：待规划迭代8.3-feat（纵轴刻度优化）
+- **下一步**：待规划下一迭代
 
 ---
 
@@ -172,6 +172,10 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代8.2-patch（全部完成 2026-03-25，tag v0.8.2）：
   - [x] BUG-legend-icon：LegendMark 新增 bar 类型分支（6×12px 竖向矩形）、line 类型补 display:inline-block，修复图例图标缺失问题 ✅
   - [x] BUG-legend-toggle：四个副图 ReactECharts 由 notMerge={true} 改为 notMerge={false}，修复图例切换后数据刷新导致曲线显隐状态被重置的问题 ✅
+- [x] 迭代8.3-feat（全部完成 2026-03-25，tag v0.8.3）：
+  - [x] FEAT-axis-name：5个图表面板 Y 轴添加名称/单位标识（主图：元/万股，MACD：MACD，RSI：RSI，KDJ：KDJ，VPA左轴：元，VPA右轴：OBV橙色）✅
+  - [x] FEAT-rsi-formatter-fix：RSI axisLabel formatter 中'超买70'/'超卖30'改为'超买'/'超卖'，避免 width:52 截断 ✅
+  - [x] DOC-multi-axis-rule：VPADefenderPanel.jsx 顶部注释补充多轴策略规范（辅助指标→tooltip替代，主要指标→新建面板，禁止 offset 方案）✅
 
 ---
 

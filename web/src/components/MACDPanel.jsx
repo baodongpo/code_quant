@@ -186,8 +186,11 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
         splitLine: { show: false },
       }],
       // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
+      // 迭代8.3 FEAT-axis-name: 新增 MACD 轴名称
       yAxis: [{
         scale: true,
+        name: 'MACD', nameLocation: 'end', nameGap: 4,
+        nameTextStyle: { color: C.textMuted, fontSize: 10 },
         splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
         axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
         axisLine:  { lineStyle: { color: C.axisLine } },

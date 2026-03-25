@@ -138,13 +138,16 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
         splitLine: { show: false },
       }],
       // 迭代8 BUG-align: axisLabel 加 width:52, overflow:'truncate'
+      // 迭代8.3 FEAT-axis-name: 新增 RSI 轴名称；formatter 去掉数字避免 width:52 截断（数字已由刻度线自动显示）
       yAxis: [{
         min: 0, max: 100,
+        name: 'RSI', nameLocation: 'end', nameGap: 4,
+        nameTextStyle: { color: C.textMuted, fontSize: 10 },
         splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
         axisLabel: {
           color: C.textMuted, fontSize: 10,
           width: 52, overflow: 'truncate',
-          formatter: v => v === 70 ? '超买70' : v === 30 ? '超卖30' : v,
+          formatter: v => v === 70 ? '超买' : v === 30 ? '超卖' : v,
         },
         axisLine: { lineStyle: { color: C.axisLine } },
       }],

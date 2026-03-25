@@ -13,6 +13,13 @@
  *   - FEAT-guide-icon: HELP_ITEMS 加 iconType，浮层图标与图例形状一致
  *   - FEAT-collapse-btn: PanelInner 标题行移除折叠按钮（改由 ChartSidebar 统一渲染）
  *
+ * 【多轴策略规范 v0.8.3】
+ * 本面板已使用满双轴（left=价格元，right=OBV）。
+ * 若未来需要新增第三量纲指标：
+ *   - 辅助性指标（不需精确轴刻度）→ 挂 yAxisIndex:1，隐藏右轴标签，tooltip 说明
+ *   - 主要性指标（需精确轴刻度）→ 新建独立副图面板，禁止在此面板追加第三轴
+ * 禁止使用 yAxis offset 方案（与 grid.left:60 约束冲突）。
+ *
  * 规格（遵循迭代裁定规范）：
  *   - 面板高度 200px（与其他副图统一）
  *   - 独立 ECharts 实例
@@ -207,15 +214,21 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
       }],
       yAxis: [
         // 左 Y 轴：价格（Stop_Line）
+        // 迭代8.3 FEAT-axis-name: 新增左轴名称（元）
         {
           scale:     true,
+          name: '元', nameLocation: 'end', nameGap: 4,
+          nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
           axisLine:  { lineStyle: { color: C.axisLine } },
         },
         // 右 Y 轴：OBV
+        // 迭代8.3 FEAT-axis-name: 新增右轴名称（OBV，橙色与 OBV 均线颜色一致）
         {
           scale:     true,
+          name: 'OBV', nameLocation: 'end', nameGap: 4,
+          nameTextStyle: { color: '#ffa726', fontSize: 10 },
           splitLine: { show: false },
           axisLabel: {
             color:    C.textMuted,

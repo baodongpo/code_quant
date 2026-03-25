@@ -705,3 +705,4 @@ code_quant/
 | 迭代8 | ✅ 已完成 | UI 对齐优化（Y轴）、说明浮层重构、折叠按钮重构、check-gaps 日志增强、VPA 配色修正、说明图标统一 |
 | 迭代8.1-patch | ✅ 已完成 | 空仓阻力线指标（FEAT-resistance）、图例按钮化（FEAT-legend-toggle）|
 | 迭代8.2-patch | ✅ 已完成 | 图例 icon 缺失修复（bar/line 类型）、图例切换 toggle 联动曲线显隐修复（notMerge→false）|
+| 迭代8.3-feat | ✅ 已完成 | 各图表 Y 轴添加名称/单位标识（元/万股/MACD/RSI/KDJ/OBV），RSI formatter 截断修复，VPA 双轴颜色关联，多轴策略规范文档 |
