@@ -274,7 +274,7 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
         ref={ref}
         option={option}
         style={{ height: 280 }}
-        notMerge={true}
+        notMerge={false}
         lazyUpdate={false}
       />
     </div>

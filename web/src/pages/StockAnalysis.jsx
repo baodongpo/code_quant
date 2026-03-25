@@ -470,6 +470,7 @@ export default function StockAnalysis() {
               background:   C.chartBg,
             }}>
               <MACDPanel
+                key={`macd-panel-${code}`}
                 ref={macdRef}
                 dates={dates} macd={indicators.MACD} signal={signals.MACD}
                 collapsed={false} onToggle={() => togglePanel('MACD')}
@@ -513,6 +514,7 @@ export default function StockAnalysis() {
               background:   C.chartBg,
             }}>
               <RSIPanel
+                key={`rsi-panel-${code}`}
                 ref={rsiRef}
                 dates={dates} rsi={indicators.RSI} signal={signals.RSI}
                 collapsed={false} onToggle={() => togglePanel('RSI')}
@@ -554,6 +556,7 @@ export default function StockAnalysis() {
               background:   C.chartBg,
             }}>
               <KDJPanel
+                key={`kdj-panel-${code}`}
                 ref={kdjRef}
                 dates={dates} kdj={indicators.KDJ} signal={signals.KDJ}
                 collapsed={false} onToggle={() => togglePanel('KDJ')}
@@ -597,6 +600,7 @@ export default function StockAnalysis() {
               background:   C.chartBg,
             }}>
               <VPADefenderPanel
+                key={`vpa-panel-${code}`}
                 ref={vpaRef}
                 dates={dates} closes={closes} vpaDefender={indicators.VPA_DEFENDER} signal={signals.VPA_DEFENDER}
                 collapsed={false} onToggle={() => togglePanel('VPA')}

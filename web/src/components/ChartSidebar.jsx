@@ -184,7 +184,7 @@ export default function ChartSidebar({
  */
 export function LegendMark({ type, color }) {
   if (type === 'line') {
-    return <span style={{ width: 18, height: 2, background: color, borderRadius: 1, flexShrink: 0 }} />
+    return <span style={{ width: 18, height: 2, background: color, borderRadius: 1, flexShrink: 0, display: 'inline-block' }} />
   }
   if (type === 'dashed') {
     return (
@@ -221,7 +221,19 @@ export function LegendMark({ type, color }) {
       }} />
     )
   }
-  // bar / default
+  if (type === 'bar') {
+    return (
+      <span style={{
+        width:        6,
+        height:       12,
+        borderRadius: 1,
+        background:   color,
+        flexShrink:   0,
+        display:      'inline-block',
+      }} />
+    )
+  }
+  // default fallback
   return (
     <span style={{
       width:        10,

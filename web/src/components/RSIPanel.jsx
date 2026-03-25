@@ -240,7 +240,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
         ref={ref}
         option={option}
         style={{ height: 240 }}
-        notMerge={true}
+        notMerge={false}
         lazyUpdate={false}
       />
     </div>

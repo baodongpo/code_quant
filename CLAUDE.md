@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **迭代7已完成 + 热修复 v0.7.1-patch**（2026-03-23），最新 tag `v0.7.1-patch`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅
+- **迭代8.2-patch 已完成**（2026-03-25），最新 tag `v0.8.2`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **下一步**：待规划迭代8
+- **下一步**：待规划迭代8.3-feat（纵轴刻度优化）
 
 ---
 
@@ -169,6 +169,9 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代8.1-patch（全部完成 2026-03-25，tag v0.8.1）：
   - [x] FEAT-resistance：VPA 副图新增空仓阻力线指标（深橙红 #ff7043，追踪最低价上方 3×ATR，只降不升，与防守线形成上下通道）✅
   - [x] FEAT-legend-toggle：ChartSidebar 图例条目升级为可点击按钮，点击切换对应曲线显示/隐藏（inactive=删除线+半透明，折叠展开状态保持，切换股票重置）✅
+- [x] 迭代8.2-patch（全部完成 2026-03-25，tag v0.8.2）：
+  - [x] BUG-legend-icon：LegendMark 新增 bar 类型分支（6×12px 竖向矩形）、line 类型补 display:inline-block，修复图例图标缺失问题 ✅
+  - [x] BUG-legend-toggle：四个副图 ReactECharts 由 notMerge={true} 改为 notMerge={false}，修复图例切换后数据刷新导致曲线显隐状态被重置的问题 ✅
 
 ---
 

@@ -298,7 +298,7 @@ const KDJPanelInner = forwardRef(function KDJPanelInner({ dates, K, D, J, signal
         ref={ref}
         option={option}
         style={{ height: 240 }}
-        notMerge={true}
+        notMerge={false}
         lazyUpdate={false}
       />
     </div>
