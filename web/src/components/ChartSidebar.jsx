@@ -22,7 +22,7 @@
  *   guideItems 文案严禁包含任何买卖操作指令，只允许描述现象/机制。
  *   未来新增指标时同样必须补充各面板内部 HELP_ITEMS，且遵守此规范。
  */
-import React from 'react'
+import React, { useState } from 'react'
 import { C } from '../utils/colors.js'
 
 const SIGNAL_STYLE = {
@@ -39,8 +39,11 @@ export default function ChartSidebar({
   legendItems = [],
   guideItems  = [],  // deprecated：保留 prop 接口，不再渲染（说明浮层已迁至各面板顶部）
   onToggle,
+  onLegendToggle,   // FEAT-legend-toggle：图例点击回调 (seriesName: string) => void
 }) {
   const sigStyle = SIGNAL_STYLE[signal] || SIGNAL_STYLE.neutral
+  // FEAT-legend-toggle：activeMap 记录各 seriesName 的显示状态，缺省视为 true（active）
+  const [activeMap, setActiveMap] = useState({})
 
   return (
     <div style={{
@@ -125,12 +128,50 @@ export default function ChartSidebar({
       {/* HTML 图例 */}
       {legendItems.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px', padding: '4px 0 2px' }}>
-          {legendItems.map((item, i) => (
-            <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap' }}>
-              <LegendMark type={item.type} color={item.color} />
-              <span>{item.label}</span>
-            </div>
-          ))}
+          {legendItems.map((item, i) => {
+            if (item.seriesName) {
+              // FEAT-legend-toggle：有 seriesName 的条目渲染为可点击按钮
+              const isActive = activeMap[item.seriesName] !== false
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    // 切换 activeMap 中该 seriesName 的状态
+                    setActiveMap(prev => ({ ...prev, [item.seriesName]: prev[item.seriesName] === false ? true : false }))
+                    onLegendToggle?.(item.seriesName)
+                  }}
+                  style={{
+                    display:    'inline-flex',
+                    alignItems: 'center',
+                    gap:        5,
+                    fontSize:   10,
+                    whiteSpace: 'nowrap',
+                    cursor:     'pointer',
+                    background: 'none',
+                    border:     'none',
+                    padding:    0,
+                    color:      isActive ? C.textMuted : C.textDim,
+                  }}
+                  title={isActive ? `隐藏 ${item.label}` : `显示 ${item.label}`}
+                >
+                  <span style={{ opacity: isActive ? 1 : 0.35 }}>
+                    <LegendMark type={item.type} color={item.color} />
+                  </span>
+                  <span style={{
+                    textDecoration: isActive ? 'none' : 'line-through',
+                    opacity:        isActive ? 1 : 0.35,
+                  }}>{item.label}</span>
+                </button>
+              )
+            }
+            // 无 seriesName：保持原有纯展示 div
+            return (
+              <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap' }}>
+                <LegendMark type={item.type} color={item.color} />
+                <span>{item.label}</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

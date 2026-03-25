@@ -38,6 +38,7 @@ const SIGNAL_CONFIG = {
 // 迭代8 FEAT-guide-icon: 各条目加 iconType，与右侧图例形状保持一致
 const HELP_ITEMS = [
   { iconType: 'line',   color: '#ef5350', text: '<b>防守线（红色实线）</b>：基于价格波动幅度计算的动态参考线。它会随着价格创新高而自动上移，但绝不会下降。当价格跌破这条线时，意味着波动幅度已经超出了正常范围。' },
+  { iconType: 'line',   color: '#ff7043', text: '<b>橙红（空仓阻力线）</b>：追踪历史最低价上方 ATR 倍数距离，只降不升。价格长期在线下方运行，说明上方压力持续；价格有效突破阻力线，可关注趋势反转信号。' },
   { iconType: 'line',   color: '#42a5f5', text: '<b>OBV 能量潮（蓝色线）</b>：通过成交量的累计变化，观察资金的流入流出方向。当它持续上升时，说明伴随上涨的成交量大于伴随下跌的成交量。' },
   { iconType: 'dashed', color: '#ffa726', text: '<b>OBV 均线（橙色虚线）</b>：OBV 的 20 日平均值，用来过滤单日波动噪音，判断资金流向的中期趋势。' },
   { iconType: 'dot',    color: '#26a69a', text: '<b>绿色（共振主升浪）</b>：价格在防守线上方，且资金持续流入——量价配合良好' },
@@ -47,7 +48,7 @@ const HELP_ITEMS = [
 ]
 
 const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, vpaDefender, signal, collapsed, onToggle }, ref) {
-  const { stop_line = [], obv = [], obv_ma20 = [], signal: signalSeries = [] } = vpaDefender || {}
+  const { stop_line = [], resistance_line = [], obv = [], obv_ma20 = [], signal: signalSeries = [] } = vpaDefender || {}
 
   // 最新有效信号
   let latestSignal = null
@@ -107,6 +108,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
       dates={dates}
       closes={closes}
       stop_line={stop_line}
+      resistance_line={resistance_line}
       obv={obv}
       obv_ma20={obv_ma20}
       signalSeries={signalSeries}
@@ -119,14 +121,12 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
 })
 
 const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
-  dates, closes, stop_line, obv, obv_ma20, signalSeries, signal, latestSignal, sigCfg, onToggle,
+  dates, closes, stop_line, resistance_line, obv, obv_ma20, signalSeries, signal, latestSignal, sigCfg, onToggle,
 }, ref) {
   const [showHelp, setShowHelp] = useState(false)
   const option = useMemo(() => {
     if (!dates || dates.length === 0) return {}
     const zoomStart = Math.max(0, 100 - Math.round(120 / dates.length * 100))
-
-    // 信号色带数据（用 markArea 在 X 轴底部绘制 4px 色带）
     const signalMarkAreas = []
     let areaStart = null
     let areaSignal = null
@@ -156,7 +156,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
     return {
       backgroundColor: C.chartBg,
       animation: false,
-      legend: { show: false },
+      legend: { show: false, data: ['收盘价', '防守线', '阻力线', 'OBV', 'OBV均线'] },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -173,6 +173,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
           const lines = [`<b>${dates[idx]}</b>`]
           if (closes && closes[idx] != null) lines.push(`收盘价: ${closes[idx]?.toFixed(2)}`)
           if (stop_line[idx] != null) lines.push(`防守线: ${stop_line[idx]?.toFixed(2)}`)
+          if (resistance_line[idx] != null) lines.push(`阻力线: ${resistance_line[idx]?.toFixed(2)}`)
           if (obv[idx] != null) lines.push(`OBV: ${Number(obv[idx]).toLocaleString()}`)
           if (obv_ma20[idx] != null) lines.push(`OBV均线: ${Number(obv_ma20[idx]).toLocaleString()}`)
           const sig = signalSeries[idx]
@@ -257,6 +258,17 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
             data:   signalMarkAreas,
           } : undefined,
         },
+        // 阻力线（左 Y 轴，橙黄色实线，只降不升）（迭代8.1-patch）
+        {
+          name:       '阻力线',
+          type:       'line',
+          yAxisIndex: 0,
+          data:       resistance_line,
+          symbol:     'none',
+          smooth:     false,
+          lineStyle:  { color: '#ff7043', width: 1.5 },
+          z:          2,
+        },
         // OBV（右 Y 轴，蓝色实线 + 半透明面积）
         {
           name:       'OBV',
@@ -282,7 +294,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
         },
       ],
     }
-  }, [dates, closes, stop_line, obv, obv_ma20, signalSeries])
+  }, [dates, closes, stop_line, resistance_line, obv, obv_ma20, signalSeries])
 
   return (
     <div style={{ flex: 1, minWidth: 0, background: C.chartBg, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

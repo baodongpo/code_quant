@@ -90,6 +90,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
     return {
       backgroundColor: C.chartBg,
       animation: false,
+      legend: { show: false, data: ['RSI14'] },
       tooltip: {
         trigger: 'axis',
         axisPointer: {

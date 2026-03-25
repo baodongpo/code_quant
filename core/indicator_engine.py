@@ -356,10 +356,11 @@ class IndicatorEngine:
     ) -> Dict[str, list]:
         """
         VPA-Defender 量价共振复合指标。
-        返回 { stop_line, obv, obv_ma20, signal } 四个等长序列。
+        返回 { stop_line, resistance_line, obv, obv_ma20, signal } 五个等长序列。
+        resistance_line：追踪历史最低收盘价 + atr_multi × ATR，只降不升（迭代8.1-patch）。
         """
         if not bars:
-            return {"stop_line": [], "obv": [], "obv_ma20": [], "signal": []}
+            return {"stop_line": [], "resistance_line": [], "obv": [], "obv_ma20": [], "signal": []}
 
         close = [b.close for b in bars]
         high = [b.high for b in bars]
@@ -385,6 +386,21 @@ class IndicatorEngine:
                 if stop_line[i] < stop_line[i - 1]:
                     stop_line[i] = stop_line[i - 1]
 
+        # 2b. Resistance_Line（镜像防守线，只降不升）（迭代8.1-patch）
+        # 全局累积最低收盘价 + atr_multi * ATR，确保阻力线只降不升。
+        resistance_line: List[Optional[float]] = [None] * size
+        running_min_close = close[0]
+        for i in range(size):
+            running_min_close = min(running_min_close, close[i])
+            if atr_series[i] is not None:
+                resistance_line[i] = round(running_min_close + atr_multi * atr_series[i], 6)
+
+        # 确保 Resistance_Line 只降不升
+        for i in range(1, size):
+            if resistance_line[i] is not None and resistance_line[i - 1] is not None:
+                if resistance_line[i] > resistance_line[i - 1]:
+                    resistance_line[i] = resistance_line[i - 1]
+
         # 3. OBV
         obv_series = cls.obv(close, volume)
 
@@ -407,6 +423,7 @@ class IndicatorEngine:
 
         return {
             "stop_line": stop_line,
+            "resistance_line": resistance_line,
             "obv": obv_series,
             "obv_ma20": obv_ma_series,
             "signal": signal_series,

@@ -140,6 +140,7 @@ const MACDPanelInner = forwardRef(function MACDPanelInner({ dates, dif, dea, mac
     return {
       backgroundColor: C.chartBg,
       animation: false,
+      legend: { show: false, data: ['DIF', 'DEA', 'MACD柱'] },
       tooltip: {
         trigger: 'axis',
         axisPointer: {

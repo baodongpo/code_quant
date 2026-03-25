@@ -141,6 +141,7 @@ const KDJPanelInner = forwardRef(function KDJPanelInner({ dates, K, D, J, signal
     return {
       backgroundColor: C.chartBg,
       animation: false,
+      legend: { show: false, data: ['K', 'D', 'J'] },
       tooltip: {
         trigger: 'axis',
         axisPointer: {

@@ -73,6 +73,9 @@ export default function StockAnalysis() {
   const [collapsed,  setCollapsed] = useState(loadCollapseState)  // 副图折叠状态
   const [watchlistSignals, setWatchlistSignals] = useState({})  // 各股综合信号
   const [appVersion, setAppVersion] = useState(null)  // 系统版本号（FEAT-version）
+  // FEAT-legend-toggle：各副图面板的图例激活状态（seriesName → boolean，false=隐藏）
+  // 切换股票时重置为全 active（新股票重新开始）
+  const [legendActiveMaps, setLegendActiveMaps] = useState({ MACD: {}, RSI: {}, KDJ: {}, VPA: {} })
 
   // 图表 refs（供 forwardRef + useChartSync 使用）
   const mainRef = useRef(null)
@@ -126,11 +129,13 @@ export default function StockAnalysis() {
       })
   }, [])
 
-  // 加载 K线+指标数据
+  // 加载 K线+指标数据（切换股票时同步重置图例激活状态）
   const loadData = useCallback(async () => {
     if (!code) return
     setLoading(true)
     setError(null)
+    // FEAT-legend-toggle：切换股票时重置全部图例为 active（AC-legend-toggle-8）
+    setLegendActiveMaps({ MACD: {}, RSI: {}, KDJ: {}, VPA: {} })
     try {
       const result = await fetchKline(code, period, startDate, endDate)
       setData(result)
@@ -158,6 +163,24 @@ export default function StockAnalysis() {
     setCollapsed(prev => {
       const next = { ...prev, [panel]: !prev[panel] }
       try { localStorage.setItem('quant_panel_collapse_state', JSON.stringify(next)) } catch (_) {}
+      // FEAT-legend-toggle：展开时同步恢复 ECharts legend 状态（AC-legend-toggle-6）
+      // 展开（prev[panel]=true → next[panel]=false），需把 inactive 的 series 重新 dispatch
+      if (prev[panel] === true) {
+        const refMap = { MACD: macdRef, RSI: rsiRef, KDJ: kdjRef, VPA: vpaRef }
+        const panelRef = refMap[panel]
+        const activeMap = legendActiveMaps[panel] || {}
+        // 延迟一帧等待 ECharts 实例挂载
+        setTimeout(() => {
+          const chart = panelRef?.current?.getEchartsInstance?.()
+          if (chart) {
+            Object.entries(activeMap).forEach(([seriesName, isActive]) => {
+              if (isActive === false) {
+                chart.dispatchAction({ type: 'legendToggleSelect', name: seriesName })
+              }
+            })
+          }
+        }, 80)
+      }
       return next
     })
   }
@@ -206,10 +229,10 @@ export default function StockAnalysis() {
   ]
 
   const macdSidebarLegend = [
-    { color: C.dif,        type: 'line',   label: 'DIF' },
-    { color: C.dea,        type: 'line',   label: 'DEA' },
-    { color: C.macdBarPos, type: 'bar',    label: '柱(正)' },
-    { color: C.macdBarNeg, type: 'bar',    label: '柱(负)' },
+    { color: C.dif,        type: 'line',   label: 'DIF',    seriesName: 'DIF' },
+    { color: C.dea,        type: 'line',   label: 'DEA',    seriesName: 'DEA' },
+    { color: C.macdBarPos, type: 'bar',    label: '柱(正)', seriesName: 'MACD柱' },
+    { color: C.macdBarNeg, type: 'bar',    label: '柱(负)', seriesName: 'MACD柱' },
     { color: C.buy,        type: 'circle', label: '金叉' },
     { color: C.sell,       type: 'circle', label: '死叉' },
   ]
@@ -220,7 +243,7 @@ export default function StockAnalysis() {
   ]
 
   const rsiSidebarLegend = [
-    { color: C.dif,        type: 'line',   label: 'RSI(14)' },
+    { color: C.dif,        type: 'line',   label: 'RSI(14)',   seriesName: 'RSI14' },
     { color: C.sell,       type: 'bar',    label: '超买区(卖)' },
     { color: C.buy,        type: 'bar',    label: '超卖区(买)' },
   ]
@@ -231,9 +254,9 @@ export default function StockAnalysis() {
   ]
 
   const kdjSidebarLegend = [
-    { color: C.kLine, type: 'line',   label: 'K线' },
-    { color: C.dLine, type: 'line',   label: 'D线' },
-    { color: C.jLine, type: 'dashed', label: 'J线' },
+    { color: C.kLine, type: 'line',   label: 'K线', seriesName: 'K' },
+    { color: C.dLine, type: 'line',   label: 'D线', seriesName: 'D' },
+    { color: C.jLine, type: 'dashed', label: 'J线', seriesName: 'J' },
     { color: C.buy,   type: 'circle', label: '金叉' },
     { color: C.sell,  type: 'circle', label: '死叉' },
   ]
@@ -245,10 +268,11 @@ export default function StockAnalysis() {
 
   // VPA-Defender 侧边栏配置（迭代7）
   const vpaSidebarLegend = [
-    { color: '#8b949e', type: 'line',   label: '收盘价' },
-    { color: '#ef5350', type: 'line',   label: '防守线' },
-    { color: '#42a5f5', type: 'line',   label: 'OBV' },
-    { color: '#ffa726', type: 'dashed', label: 'OBV均线' },
+    { color: '#8b949e', type: 'line',   label: '收盘价',  seriesName: '收盘价' },
+    { color: '#ef5350', type: 'line',   label: '防守线',  seriesName: '防守线' },
+    { color: '#ff7043', type: 'line',   label: '阻力线',  seriesName: '阻力线' },
+    { color: '#42a5f5', type: 'line',   label: 'OBV',     seriesName: 'OBV' },
+    { color: '#ffa726', type: 'dashed', label: 'OBV均线', seriesName: 'OBV均线' },
   ]
   const vpaSidebarGuide = [
     { dotColor: '#26a69a', text: '<b>防守线（红色实线）</b>：基于价格波动幅度计算的动态参考线。它会随着价格创新高而自动上移，但绝不会下降。当价格跌破这条线时，意味着波动幅度已经超出了正常范围。' },
@@ -451,6 +475,7 @@ export default function StockAnalysis() {
                 collapsed={false} onToggle={() => togglePanel('MACD')}
               />
               <ChartSidebar
+                key={`macd-sidebar-${code}`}
                 title="📶 MACD 趋势动能"
                 signal={signals.MACD}
                 onToggle={() => togglePanel('MACD')}
@@ -460,6 +485,15 @@ export default function StockAnalysis() {
                 ].filter(Boolean)}
                 legendItems={macdSidebarLegend}
                 guideItems={macdSidebarGuide}
+                onLegendToggle={(seriesName) => {
+                  // 同步更新父组件维护的激活状态（用于折叠展开时状态恢复）
+                  setLegendActiveMaps(prev => ({
+                    ...prev,
+                    MACD: { ...prev.MACD, [seriesName]: prev.MACD[seriesName] === false ? true : false },
+                  }))
+                  const chart = macdRef.current?.getEchartsInstance?.()
+                  if (chart) chart.dispatchAction({ type: 'legendToggleSelect', name: seriesName })
+                }}
               />
             </div>
           )}
@@ -484,6 +518,7 @@ export default function StockAnalysis() {
                 collapsed={false} onToggle={() => togglePanel('RSI')}
               />
               <ChartSidebar
+                key={`rsi-sidebar-${code}`}
                 title="💪 RSI 超买超卖"
                 signal={signals.RSI}
                 onToggle={() => togglePanel('RSI')}
@@ -492,6 +527,14 @@ export default function StockAnalysis() {
                 ] : []}
                 legendItems={rsiSidebarLegend}
                 guideItems={rsiSidebarGuide}
+                onLegendToggle={(seriesName) => {
+                  setLegendActiveMaps(prev => ({
+                    ...prev,
+                    RSI: { ...prev.RSI, [seriesName]: prev.RSI[seriesName] === false ? true : false },
+                  }))
+                  const chart = rsiRef.current?.getEchartsInstance?.()
+                  if (chart) chart.dispatchAction({ type: 'legendToggleSelect', name: seriesName })
+                }}
               />
             </div>
           )}
@@ -516,6 +559,7 @@ export default function StockAnalysis() {
                 collapsed={false} onToggle={() => togglePanel('KDJ')}
               />
               <ChartSidebar
+                key={`kdj-sidebar-${code}`}
                 title="🔀 KDJ 短线时机"
                 signal={signals.KDJ}
                 onToggle={() => togglePanel('KDJ')}
@@ -526,6 +570,14 @@ export default function StockAnalysis() {
                 ].filter(Boolean)}
                 legendItems={kdjSidebarLegend}
                 guideItems={kdjSidebarGuide}
+                onLegendToggle={(seriesName) => {
+                  setLegendActiveMaps(prev => ({
+                    ...prev,
+                    KDJ: { ...prev.KDJ, [seriesName]: prev.KDJ[seriesName] === false ? true : false },
+                  }))
+                  const chart = kdjRef.current?.getEchartsInstance?.()
+                  if (chart) chart.dispatchAction({ type: 'legendToggleSelect', name: seriesName })
+                }}
               />
             </div>
           )}
@@ -550,6 +602,7 @@ export default function StockAnalysis() {
                 collapsed={false} onToggle={() => togglePanel('VPA')}
               />
               <ChartSidebar
+                key={`vpa-sidebar-${code}`}
                 title="🛡️ VPA 量价共振防守"
                 signal={signals.VPA_DEFENDER}
                 onToggle={() => togglePanel('VPA')}
@@ -559,6 +612,14 @@ export default function StockAnalysis() {
                 ].filter(Boolean)}
                 legendItems={vpaSidebarLegend}
                 guideItems={vpaSidebarGuide}
+                onLegendToggle={(seriesName) => {
+                  setLegendActiveMaps(prev => ({
+                    ...prev,
+                    VPA: { ...prev.VPA, [seriesName]: prev.VPA[seriesName] === false ? true : false },
+                  }))
+                  const chart = vpaRef.current?.getEchartsInstance?.()
+                  if (chart) chart.dispatchAction({ type: 'legendToggleSelect', name: seriesName })
+                }}
               />
             </div>
           )}
