@@ -478,6 +478,18 @@ def cmd_stats(_args) -> None:
         if len(open_gaps) > 20:
             print(f"    ... and {len(open_gaps) - 20} more")
 
+    # 列出 no_data gaps（已验证无数据，如临时停市）
+    no_data_gaps = gap_repo.get_no_data_gaps() if hasattr(gap_repo, "get_no_data_gaps") else []
+    if no_data_gaps:
+        print(f"\n  ℹ  No-data gaps ({len(no_data_gaps)}):")
+        print(f"    (verified as no trading data, e.g., typhoon closure)")
+        for g in no_data_gaps[:10]:
+            reason = g.get('skip_reason', '') or ''
+            reason_str = f"  ({reason})" if reason else ""
+            print(f"    {g['stock_code']:<16} [{g['period']}]  {g['gap_start']}~{g['gap_end']}{reason_str}")
+        if len(no_data_gaps) > 10:
+            print(f"    ... and {len(no_data_gaps) - 10} more")
+
     print(f"\n{'='*64}\n")
     logger.info("Stats command completed")
 

@@ -106,9 +106,12 @@ class GapRepository:
     ) -> None:
         """
         批量写入空洞列表（单事务，原子提交）。
+        
+        状态处理：
         - 新空洞（不存在）：插入为 'open'
-        - 已存在且为 'failed' 的空洞：重置为 'open' 以允许重试
-        - 已存在且为 'open'/'filling'/'filled' 的空洞：不变
+        - 已存在且为 'failed'：重置为 'open' 以允许重试
+        - 已存在且为 'no_data'：保持不变（已验证无数据，不应重试）
+        - 已存在且为 'open'/'filling'/'filled'：保持不变
         """
         sql = """
             INSERT INTO data_gaps (stock_code, period, gap_start, gap_end, status)

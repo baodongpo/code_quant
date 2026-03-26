@@ -11,8 +11,8 @@
 
 ## 当前状态
 
-- **迭代8.5-patch 已完成**（2026-03-26），最新 tag `v0.8.5-patch`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅
+- **迭代8.6-patch 已完成**（2026-03-26），最新 tag `v0.8.6-patch`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **下一步**：待规划下一迭代
 
@@ -189,6 +189,9 @@ tail -f logs/sync_$(date +%Y%m%d).log
     - 修复：引入 `no_data` 状态，sync 验证空洞时若 API 返回空数据则标记为 `no_data`，不再重复尝试填充
     - 新增：`data_gaps` 表增加 `skip_reason` 字段，`gap_repo` 增加 `mark_no_data()` 方法
     - 迁移：`init_db()` 自动检测并更新 CHECK 约束（重建表），兼容旧版本升级
+- [x] 迭代8.6-patch（全部完成 2026-03-26，tag v0.8.6-patch）：
+  - [x] FEAT-stats-no-data：`stats` 命令增加 `no_data` 状态空洞统计显示
+  - [x] DOC-gap-repo：更新 `upsert_gaps()` 注释，明确说明 `no_data` 状态处理逻辑
 
 ---
 
