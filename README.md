@@ -707,3 +707,4 @@ code_quant/
 | 迭代8.2-patch | ✅ 已完成 | 图例 icon 缺失修复（bar/line 类型）、图例切换 toggle 联动曲线显隐修复（notMerge→false）|
 | 迭代8.3-feat | ✅ 已完成 | 各图表 Y 轴添加名称/单位标识（元/万股/MACD/RSI/KDJ/OBV），RSI formatter 截断修复，VPA 双轴颜色关联，多轴策略规范文档 |
 | 迭代8.4-patch | ✅ 已完成 | 空洞检测 BUG 修复：周K/月K日期格式不匹配、sync 修复历史空洞 |
+| 迭代8.5-patch | ✅ 已完成 | 临时停市空洞智能验证：引入 `no_data` 状态标记台风等临时停市日期，自动迁移 CHECK 约束 |

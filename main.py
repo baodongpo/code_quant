@@ -578,37 +578,61 @@ def cmd_check_gaps(args) -> None:
     stocks_with_gaps = 0
     total_gaps_found = 0
     total_gaps_persisted = 0
+    # 详细空洞记录：(stock_code, period, gap_start, gap_end) 用于汇总报告
+    all_gaps_detail = []
 
     for idx, stock in enumerate(stocks_to_check, 1):
         logger.info("[%d/%d] Checking %s ...", idx, total_stocks, stock.stock_code)
         stock_has_gap = False
-        stock_gap_summary = []  # (period, n_gaps, reason)
+        stock_gap_summary = []  # (period, n_gaps, reason, gaps_list)
+        stock_gaps_by_period = {}  # period -> [(gap_start, gap_end), ...]
 
         for period in periods:
-            # P1-01 修复：日历缺失时 GapDetector 返回空列表而不抛异常，
-            # 必须在调用前主动检查，缺失则 WARNING + continue，避免误报 "no gaps"。
             calendar_market = A_STOCK_CALENDAR_MARKET if stock.market == "A" else stock.market
-            if not calendar_repo.has_calendar(calendar_market, DEFAULT_HISTORY_START, today_str):
+
+            # FIX: 使用日历实际覆盖范围进行空洞检测，而不是跳过
+            # 如果日历数据不足，只检测已有日历覆盖的日期范围内的空洞
+            cal_min, cal_max = calendar_repo.get_calendar_coverage(calendar_market)
+
+            if cal_min is None or cal_max is None:
                 logger.warning(
-                    "  [%s] Trading calendar missing for %s [%s~%s], skipping gap detection.",
-                    period, calendar_market, DEFAULT_HISTORY_START, today_str
+                    "  [%s] No trading calendar for %s, skipping gap detection.",
+                    period, calendar_market
                 )
-                stock_gap_summary.append((period, 0, "calendar_missing"))
+                stock_gap_summary.append((period, 0, "calendar_missing", []))
                 continue
+
+            # 确定实际检测范围：取请求范围与日历覆盖范围的交集
+            detect_start = max(DEFAULT_HISTORY_START, cal_min)
+            detect_end = min(today_str, cal_max)
+
+            if detect_start > detect_end:
+                logger.warning(
+                    "  [%s] Calendar coverage [%s~%s] does not overlap with detect range [%s~%s], skipping.",
+                    period, cal_min, cal_max, DEFAULT_HISTORY_START, today_str
+                )
+                stock_gap_summary.append((period, 0, "calendar_missing", []))
+                continue
+
+            if detect_start != DEFAULT_HISTORY_START or detect_end != today_str:
+                logger.info(
+                    "  [%s] Detecting gaps in calendar coverage range: [%s~%s]",
+                    period, detect_start, detect_end
+                )
 
             gaps = gap_detector.detect_gaps(
                 stock_code=stock.stock_code,
                 period=period,
                 market=stock.market,
-                start_date=DEFAULT_HISTORY_START,
-                end_date=today_str,
+                start_date=detect_start,
+                end_date=detect_end,
             )
 
             n_gaps = len(gaps)
 
             if n_gaps == 0:
                 logger.info("  [%s] No gaps found.", period)
-                stock_gap_summary.append((period, 0, "ok"))
+                stock_gap_summary.append((period, 0, "ok", []))
             else:
                 # 迭代8 FEAT-check-gaps-log: 日期展示按周期转换（仅影响展示，不影响DB存储）
                 def _format_gap_date(date_str: str, period: str) -> str:
@@ -642,17 +666,28 @@ def cmd_check_gaps(args) -> None:
                 stock_has_gap = True
                 total_gaps_found += n_gaps
                 total_gaps_persisted += n_gaps
-                stock_gap_summary.append((period, n_gaps, "gaps"))
+                stock_gap_summary.append((period, n_gaps, "gaps", gaps))
+                stock_gaps_by_period[period] = gaps
+                # 记录详细空洞信息
+                for gap_start, gap_end in gaps:
+                    all_gaps_detail.append((stock.stock_code, period, gap_start, gap_end))
 
         if stock_has_gap:
             stocks_with_gaps += 1
 
         # 终端输出每只股票的结论
-        gap_periods = [(p, n) for p, n, reason in stock_gap_summary if reason == "gaps"]
-        cal_missing_periods = [p for p, n, reason in stock_gap_summary if reason == "calendar_missing"]
+        gap_periods = [(p, n, g) for p, n, reason, g in stock_gap_summary if reason == "gaps"]
+        cal_missing_periods = [p for p, n, reason, g in stock_gap_summary if reason == "calendar_missing"]
         if gap_periods:
-            details = ", ".join(f"[{p}]: {n} gap(s)" for p, n in gap_periods)
+            details = ", ".join(f"[{p}]: {n} gap(s)" for p, n, g in gap_periods)
             print(f"  Checking {stock.stock_code:<16} ...  ⚠  {details}")
+            # 显示每只股票的空洞详情
+            for p, n, gaps_list in gap_periods:
+                for gap_start, gap_end in gaps_list:
+                    if gap_start == gap_end:
+                        print(f"                                   └─ [{p}] {gap_start}")
+                    else:
+                        print(f"                                   └─ [{p}] {gap_start} ~ {gap_end}")
         elif cal_missing_periods:
             missing_str = ", ".join(f"[{p}]" for p in cal_missing_periods)
             print(f"  Checking {stock.stock_code:<16} ...  ⚠  calendar missing for {missing_str} (skipped)")
@@ -666,6 +701,10 @@ def cmd_check_gaps(args) -> None:
     logger.info("Total gaps found: %d", total_gaps_found)
     logger.info("=" * 60)
 
+    # 获取 no_data 状态的空洞数量（已验证无数据，如临时停市）
+    no_data_gaps = gap_repo.get_no_data_gaps()
+    no_data_count = len(no_data_gaps)
+
     # 终端汇总
     print()
     print("=" * 64)
@@ -673,8 +712,38 @@ def cmd_check_gaps(args) -> None:
     print(f"    Stocks with gaps : {stocks_with_gaps} / {total_stocks}")
     print(f"    Total gaps found : {total_gaps_found}")
     print(f"    Persisted to DB  : {total_gaps_persisted}  (data_gaps, status=open)")
-    print()
-    print("  Run `python main.py sync` to repair gaps automatically.")
+    if no_data_count > 0:
+        print(f"    No-data gaps     : {no_data_count}  (verified as no trading data, e.g., typhoon closure)")
+
+    # 按周期分类汇总空洞
+    if all_gaps_detail:
+        print()
+        print("  Gaps by Period:")
+        gaps_by_period = {}
+        for stock_code, period, gap_start, gap_end in all_gaps_detail:
+            if period not in gaps_by_period:
+                gaps_by_period[period] = []
+            gaps_by_period[period].append((stock_code, gap_start, gap_end))
+
+        period_names = {"1D": "Daily", "1W": "Weekly", "1M": "Monthly"}
+        for period in ["1D", "1W", "1M"]:
+            if period in gaps_by_period:
+                gaps_list = gaps_by_period[period]
+                print(f"    [{period}] {period_names.get(period, period)}: {len(gaps_list)} gap(s)")
+                # 显示前5个空洞详情
+                for stock_code, gap_start, gap_end in gaps_list[:5]:
+                    if gap_start == gap_end:
+                        print(f"          {stock_code}: {gap_start}")
+                    else:
+                        print(f"          {stock_code}: {gap_start} ~ {gap_end}")
+                if len(gaps_list) > 5:
+                    print(f"          ... and {len(gaps_list) - 5} more")
+
+    # 显示需要修复的命令提示
+    if total_gaps_found > 0:
+        print()
+        print("  To repair gaps, run:")
+        print("    python main.py sync")
     print("=" * 64 + "\n")
 
 

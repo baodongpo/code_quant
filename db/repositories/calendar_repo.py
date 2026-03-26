@@ -51,6 +51,24 @@ class CalendarRepository:
         max_date = row["max_date"] if row else None
         return max_date is not None and max_date >= end_date
 
+    def get_calendar_coverage(self, market: str) -> tuple:
+        """
+        获取某市场日历数据的实际覆盖范围。
+
+        Returns:
+            (min_date, max_date) 或 (None, None) 如果没有数据
+        """
+        sql = """
+            SELECT MIN(trade_date) AS min_date, MAX(trade_date) AS max_date
+            FROM trading_calendar
+            WHERE market = ? AND is_trading_day = 1
+        """
+        with DBConnection(self._db_path) as conn:
+            row = conn.execute(sql, (market,)).fetchone()
+        if row and row["min_date"] and row["max_date"]:
+            return (row["min_date"], row["max_date"])
+        return (None, None)
+
     def get_weekly_last_trading_days(
         self, market: str, start_date: str, end_date: str
     ) -> List[str]:

@@ -114,7 +114,8 @@ CREATE TABLE IF NOT EXISTS data_gaps (
     detected_at TEXT NOT NULL DEFAULT (datetime('now')),
     filled_at   TEXT,
     status      TEXT NOT NULL DEFAULT 'open'
-                CHECK(status IN ('open','filling','filled','failed')),
+                CHECK(status IN ('open','filling','filled','failed','no_data')),
+    skip_reason TEXT,
     UNIQUE (stock_code, period, gap_start, gap_end),
     FOREIGN KEY (stock_code) REFERENCES stocks(stock_code)
 );
@@ -212,6 +213,72 @@ def init_db(db_path: str) -> None:
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass  # 并发场景，已由其他进程添加
+
+        # 迁移：为旧版 data_gaps 表补充 skip_reason 列，并更新 CHECK 约束（幂等）
+        gaps_cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(data_gaps)").fetchall()
+        }
+        if "skip_reason" not in gaps_cols:
+            try:
+                conn.execute("ALTER TABLE data_gaps ADD COLUMN skip_reason TEXT")
+            except sqlite3.OperationalError:
+                pass  # 并发场景，已由其他进程添加
+
+        # 迁移：更新 data_gaps 表的 CHECK 约束以支持 'no_data' 状态
+        # SQLite 不支持直接修改 CHECK 约束，需要重建表
+        # 检查当前约束是否包含 'no_data'
+        gaps_schema = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='data_gaps'"
+        ).fetchone()
+        if gaps_schema and gaps_schema[0]:
+            current_schema = gaps_schema[0]
+            if "'no_data'" not in current_schema:
+                # 需要重建表以更新 CHECK 约束
+                logger = __import__('logging').getLogger(__name__)
+                logger.info("Migrating data_gaps table: adding 'no_data' status to CHECK constraint")
+                # 暂时禁用外键约束
+                conn.execute("PRAGMA foreign_keys=OFF;")
+                conn.executescript("""
+                    -- 备份现有数据
+                    CREATE TABLE IF NOT EXISTS data_gaps_backup AS SELECT * FROM data_gaps;
+
+                    -- 删除旧表
+                    DROP TABLE data_gaps;
+
+                    -- 创建新表（包含 no_data 状态）
+                    CREATE TABLE data_gaps (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        stock_code  TEXT NOT NULL,
+                        period      TEXT NOT NULL CHECK(period IN ('1D','1W','1M')),
+                        gap_start   TEXT NOT NULL,
+                        gap_end     TEXT NOT NULL,
+                        detected_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        filled_at   TEXT,
+                        status      TEXT NOT NULL DEFAULT 'open'
+                                    CHECK(status IN ('open','filling','filled','failed','no_data')),
+                        skip_reason TEXT,
+                        UNIQUE (stock_code, period, gap_start, gap_end),
+                        FOREIGN KEY (stock_code) REFERENCES stocks(stock_code)
+                    );
+
+                    -- 恢复数据
+                    INSERT INTO data_gaps (id, stock_code, period, gap_start, gap_end, detected_at, filled_at, status, skip_reason)
+                    SELECT id, stock_code, period, gap_start, gap_end, detected_at, filled_at, status, skip_reason FROM data_gaps_backup;
+
+                    -- 删除备份表
+                    DROP TABLE data_gaps_backup;
+                """)
+                # 重建索引
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_gaps_open
+                        ON data_gaps(stock_code, period)
+                        WHERE status = 'open';
+                """)
+                # 重新启用外键约束
+                conn.execute("PRAGMA foreign_keys=ON;")
+                logger.info("data_gaps table migration complete: 'no_data' status added")
+
         conn.commit()
     finally:
         conn.close()

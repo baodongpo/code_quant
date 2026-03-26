@@ -374,25 +374,65 @@ class SyncEngine:
         """
         检测并修复数据空洞（空洞补填使用历史K线限频器）。
         
-        FIX v0.8.4: 
-        - 检测增量范围内的新空洞并记录
-        - 修复 data_gaps 表中所有 open 状态的空洞（包括历史空洞）
+        FIX v0.8.5:
+        - 检测全量范围内的历史空洞（从 DEFAULT_HISTORY_START 开始）
+        - 只处理已经"结算"的日期（昨天及之前的交易日）
+        - 验证空洞是否真正被填充（API返回有效数据才算成功）
         """
         stock_code = stock.stock_code
+        calendar_market = A_STOCK_CALENDAR_MARKET if stock.market == "A" else stock.market
 
-        # 1. 检测增量范围内的新空洞并持久化
+        # 确定空洞检测范围：从历史起点到昨天
+        # 不检测今天的空洞，因为今天可能是盘中/未结算
+        yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # 获取日历实际覆盖范围，避免检测超出日历范围的空洞
+        cal_min, cal_max = self._calendar_repo.get_calendar_coverage(calendar_market)
+        if cal_min is None or cal_max is None:
+            logger.warning(
+                "[%s][%s] No calendar data for %s, skipping gap detection",
+                stock_code, period, calendar_market
+            )
+            return
+
+        # 空洞检测范围：取日历覆盖范围与昨天之前的最小值
+        detect_start = max(DEFAULT_HISTORY_START, cal_min)
+        detect_end = min(yesterday, cal_max)
+
+        if detect_start > detect_end:
+            logger.info(
+                "[%s][%s] No valid detect range (start=%s, end=%s), skipping gap detection",
+                stock_code, period, detect_start, detect_end
+            )
+            return
+
+        logger.info(
+            "[%s][%s] Detecting gaps in range [%s~%s]",
+            stock_code, period, detect_start, detect_end
+        )
+
+        # 1. 检测全量范围内的空洞并持久化
         gaps = self._gap_detector.detect_gaps(
             stock_code=stock_code,
             period=period,
             market=stock.market,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=detect_start,
+            end_date=detect_end,
         )
         if gaps:
             self._gap_repo.upsert_gaps(stock_code, period, gaps)
+            logger.info(
+                "[%s][%s] Detected %d new gap(s) in range [%s~%s]",
+                stock_code, period, len(gaps), detect_start, detect_end
+            )
 
         # 2. 处理所有 open 状态的空洞（含刚重置的 failed，以及历史空洞）
         open_gaps = self._gap_repo.get_open_gaps(stock_code, period)
+        if not open_gaps:
+            logger.debug("[%s][%s] No open gaps to fill", stock_code, period)
+            return
+
+        logger.info("[%s][%s] Found %d open gap(s) to fill", stock_code, period, len(open_gaps))
         for gap in open_gaps:
             gap_id = gap["id"]
             gap_start = gap["gap_start"]
@@ -406,16 +446,62 @@ class SyncEngine:
                     stock_code, period, gap_start, gap_end
                 )
                 valid_bars, invalid_bars = self._validator.validate_many(bars)
+                
+                # FIX v0.8.5: 验证空洞是否真正被填充
+                # 如果 API 返回 0 条数据，说明该日期可能还没有数据（未来日期/停牌/退市）
+                # 此时不应标记为 filled，而应标记为 no_data（临时停市等）
+                total_bars = len(valid_bars) + len(invalid_bars)
+                if total_bars == 0:
+                    logger.warning(
+                        "Gap fill returned 0 bars for %s [%s] %s~%s - marking as no_data (temporary market closure, not listed, or delisted)",
+                        stock_code, period, gap_start, gap_end
+                    )
+                    # 标记为 no_data，不再重复尝试填充
+                    self._gap_repo.mark_no_data(gap_id, reason="api_no_data")
+                    continue
+
                 if valid_bars:
                     self._kline_repo.insert_many(valid_bars)
                 if invalid_bars:
                     self._kline_repo.insert_many(invalid_bars)  # 以 is_valid=0 写入
-                self._gap_repo.mark_filled(gap_id)
-                logger.info(
-                    "Gap filled %s [%s] %s~%s: %d valid, %d invalid",
-                    stock_code, period, gap_start, gap_end,
-                    len(valid_bars), len(invalid_bars)
-                )
+                
+                # 验证空洞是否真正被填充：检查数据是否已写入
+                filled_dates = set(self._kline_repo.get_dates_in_range(
+                    stock_code, period, gap_start, gap_end
+                ))
+                
+                # 检查空洞区间内的交易日是否都已填充
+                if period == "1D":
+                    expected_dates = self._calendar_repo.get_trading_days(
+                        calendar_market, gap_start, gap_end
+                    )
+                elif period == "1W":
+                    expected_dates = self._calendar_repo.get_weekly_mondays(
+                        calendar_market, gap_start, gap_end
+                    )
+                else:  # 1M
+                    expected_dates = self._calendar_repo.get_monthly_first_days(
+                        calendar_market, gap_start, gap_end
+                    )
+                
+                missing_dates = [d for d in expected_dates if d not in filled_dates]
+                
+                if missing_dates:
+                    logger.warning(
+                        "Gap %s [%s] %s~%s partially filled: %d/%d dates still missing: %s",
+                        stock_code, period, gap_start, gap_end,
+                        len(missing_dates), len(expected_dates),
+                        missing_dates[:5]  # 只显示前5个
+                    )
+                    # 保持 open 状态，下次继续尝试
+                    self._gap_repo.mark_open(gap_id)
+                else:
+                    self._gap_repo.mark_filled(gap_id)
+                    logger.info(
+                        "Gap filled %s [%s] %s~%s: %d valid, %d invalid",
+                        stock_code, period, gap_start, gap_end,
+                        len(valid_bars), len(invalid_bars)
+                    )
             except Exception as e:
                 self._gap_repo.mark_failed(gap_id)
                 logger.error(
