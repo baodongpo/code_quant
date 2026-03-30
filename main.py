@@ -581,10 +581,11 @@ def cmd_check_gaps(args) -> None:
     print()
 
     # 初始化组件（无需 Futu 连接）
+    # v0.8.7-patch: 传入 gap_repo 以支持排除 no_data 空洞
     calendar_repo = CalendarRepository(DB_PATH)
     kline_repo = KlineRepository(DB_PATH)
     gap_repo = GapRepository(DB_PATH)
-    gap_detector = GapDetector(calendar_repo, kline_repo)
+    gap_detector = GapDetector(calendar_repo, kline_repo, gap_repo)
 
     # 汇总统计
     stocks_with_gaps = 0
