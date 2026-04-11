@@ -4,9 +4,8 @@ yfinance_wrap/client.py — yfinance 连接管理
 yfinance 不需要持久连接（HTTP 请求），但需管理代理配置和请求频率。
 不实现 connect()/disconnect() 生命周期，与 FutuClient 不同。
 
-注意：yfinance >= 0.2.36 要求使用 curl_cffi session（自动处理），
-不要手动设置 requests.Session，否则会报 YFDataException。
-代理必须通过 os.environ 设置，curl_cffi 才会读取。
+代理方案：通过 curl_cffi Session 的 proxy 参数设置，
+仅影响 yfinance 请求，不污染 os.environ（不影响富途 OpenD 等本地服务）。
 
 Yahoo Finance API 限频规则（基于 IP）：
   - 每分钟 60 次
@@ -16,7 +15,6 @@ Yahoo Finance API 限频规则（基于 IP）：
 """
 
 import logging
-import os
 import time
 from collections import deque
 
@@ -32,10 +30,12 @@ logger = logging.getLogger(__name__)
 class YFinanceClient:
     """
     yfinance 连接管理器。
-    - 管理代理配置和请求间隔
+    - 管理代理配置（curl_cffi Session 级别，不影响进程其他请求）
+    - 管理请求间隔和滑动窗口限频
     - 不需要 connect()/disconnect() 生命周期
-    - 不手动创建 session（yfinance 自动使用 curl_cffi）
-    - 滑动窗口限频（60/min, 360/hour, 8000/day）
+
+    代理配置仅作用于 yfinance 请求，通过 curl_cffi Session 实现，
+    不设置 os.environ，不影响富途 OpenD 等本地服务。
     """
 
     # Yahoo 官方限频规则
@@ -65,33 +65,25 @@ class YFinanceClient:
         # 滑动窗口限频：记录每次请求的时间戳
         self._request_timestamps = deque()
 
-        # 设置代理（curl_cffi 通过环境变量读取）
-        self._setup_proxy()
+        # 创建 curl_cffi Session（带代理，仅 yfinance 使用）
+        self._session = self._build_session()
 
-    def _setup_proxy(self) -> None:
-        """配置代理环境变量，让 curl_cffi 自动使用。
+    def _build_session(self):
+        """构建 curl_cffi Session，仅 yfinance 使用。
 
-        同时设置 NO_PROXY 排除本地地址，避免富途 OpenD (127.0.0.1:11111)
-        等本地服务请求被代理拦截。
+        通过 Session 级别 proxy 设置代理，不污染 os.environ，
+        富途 OpenD 等本地服务不受影响。
         """
+        from curl_cffi.requests import Session
+
+        kwargs = {}
         if self._proxy:
-            os.environ["HTTP_PROXY"] = self._proxy
-            os.environ["HTTPS_PROXY"] = self._proxy
-            # NO_PROXY：本地回环地址不走代理，保护富途 OpenD 等本地服务
-            no_proxy = os.environ.get("NO_PROXY", "")
-            local_hosts = "localhost,127.0.0.1,0.0.0.0"
-            if not no_proxy:
-                os.environ["NO_PROXY"] = local_hosts
-            elif "127.0.0.1" not in no_proxy:
-                os.environ["NO_PROXY"] = f"{no_proxy},{local_hosts}"
-            logger.info(
-                "yfinance proxy configured via env: %s (NO_PROXY=%s)",
-                self._proxy, os.environ["NO_PROXY"],
-            )
+            kwargs["proxy"] = self._proxy
+            logger.info("yfinance proxy configured (session-level): %s", self._proxy)
         else:
-            # 清除可能存在的旧代理配置
-            os.environ.pop("HTTP_PROXY", None)
-            os.environ.pop("HTTPS_PROXY", None)
+            logger.info("yfinance no proxy configured (direct connection)")
+
+        return Session(**kwargs)
 
     def wait_rate_limit(self) -> None:
         """请求间隔控制 + 滑动窗口限频，避免 Yahoo 429。"""
@@ -140,12 +132,12 @@ class YFinanceClient:
         获取 yfinance Ticker 对象。
 
         stock_code 格式转换：US.AAPL → AAPL
-        不传入 session，让 yfinance 自动使用 curl_cffi。
+        传入 curl_cffi Session（带代理配置），仅影响 yfinance 请求。
         """
         import yfinance as yf
 
         symbol = stock_code.split(".", 1)[1] if "." in stock_code else stock_code
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=self._session)
         return ticker
 
     @property
