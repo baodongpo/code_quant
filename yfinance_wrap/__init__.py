@@ -8,9 +8,11 @@ yfinance_wrap — yfinance 美股数据源封装模块（迭代9）
 from yfinance_wrap.client import YFinanceClient
 from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
 from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
+from yfinance_wrap.calendar_fetcher import YFinanceCalendarFetcher
 
 __all__ = [
     "YFinanceClient",
     "YFinanceKlineFetcher",
     "YFinanceAdjustFetcher",
+    "YFinanceCalendarFetcher",
 ]

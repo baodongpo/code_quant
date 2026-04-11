@@ -3,12 +3,13 @@ yfinance_wrap/client.py — yfinance 连接管理
 
 yfinance 不需要持久连接（HTTP 请求），但需管理代理配置和请求频率。
 不实现 connect()/disconnect() 生命周期，与 FutuClient 不同。
+
+注意：yfinance >= 0.2.36 要求使用 curl_cffi session（自动处理），
+不要手动设置 requests.Session，否则会报 YFDataException。
 """
 
 import logging
 import time
-
-import requests
 
 from config.settings import (
     YFINANCE_MAX_RETRIES,
@@ -24,6 +25,7 @@ class YFinanceClient:
     yfinance 连接管理器。
     - 管理代理配置和请求间隔
     - 不需要 connect()/disconnect() 生命周期
+    - 不手动创建 session（yfinance 自动使用 curl_cffi）
     """
 
     def __init__(
@@ -42,20 +44,9 @@ class YFinanceClient:
             else YFINANCE_MAX_RETRIES
         )
         self._last_request_time = 0.0
-        self._session = self._build_session()
 
         if self._proxy:
             logger.info("yfinance proxy configured: %s", self._proxy)
-
-    def _build_session(self) -> requests.Session:
-        """构建带代理的 requests.Session。"""
-        session = requests.Session()
-        if self._proxy:
-            session.proxies = {
-                "http": self._proxy,
-                "https": self._proxy,
-            }
-        return session
 
     def wait_rate_limit(self) -> None:
         """请求间隔控制，避免 Yahoo 限频。"""
@@ -69,17 +60,15 @@ class YFinanceClient:
         获取 yfinance Ticker 对象。
 
         stock_code 格式转换：US.AAPL → AAPL
+        不传入 session，让 yfinance 自动使用 curl_cffi。
         """
         import yfinance as yf
 
         symbol = stock_code.split(".", 1)[1] if "." in stock_code else stock_code
-        ticker = yf.Ticker(symbol, session=self._session)
+        # yfinance >= 0.2.36 自动使用 curl_cffi，不传 session
+        ticker = yf.Ticker(symbol)
         return ticker
 
     @property
     def max_retries(self) -> int:
         return self._max_retries
-
-    @property
-    def session(self) -> requests.Session:
-        return self._session

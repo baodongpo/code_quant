@@ -133,6 +133,7 @@ def build_dependencies(
         from yfinance_wrap.client import YFinanceClient
         from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
         from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
+        from yfinance_wrap.calendar_fetcher import YFinanceCalendarFetcher
 
         yf_client = YFinanceClient(
             proxy=YFINANCE_PROXY or None,
@@ -141,6 +142,7 @@ def build_dependencies(
         )
         yfinance_kline_fetcher = YFinanceKlineFetcher(yf_client)
         yfinance_adjust_fetcher = YFinanceAdjustFetcher(yf_client)
+        yfinance_calendar_fetcher = YFinanceCalendarFetcher()
         logger = logging.getLogger("main")
         logger.info("yfinance data source enabled (proxy=%s)", YFINANCE_PROXY or "none")
 
