@@ -141,10 +141,15 @@ def build_dependencies(
             max_retries=YFINANCE_MAX_RETRIES,
         )
         yfinance_kline_fetcher = YFinanceKlineFetcher(yf_client)
-        yfinance_adjust_fetcher = YFinanceAdjustFetcher(yf_client)
+        yfinance_adjust_fetcher = YFinanceAdjustFetcher(
+            yf_client, kline_fetcher=yfinance_kline_fetcher,
+        )
         yfinance_calendar_fetcher = YFinanceCalendarFetcher()
         logger = logging.getLogger("main")
-        logger.info("yfinance data source enabled (proxy=%s)", YFINANCE_PROXY or "none")
+        logger.info(
+            "yfinance data source enabled (proxy=%s, request_interval=%.1fs)",
+            YFINANCE_PROXY or "none", YFINANCE_REQUEST_INTERVAL,
+        )
 
     # Core services
     validator = KlineValidator()

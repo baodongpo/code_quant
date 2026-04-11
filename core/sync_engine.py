@@ -243,8 +243,13 @@ class SyncEngine:
         # 3. 确保交易日历已存在（使用通用限频器）
         self._ensure_calendar(stock.market, start_date, today)
 
-        # 4. 刷新复权因子（使用通用限频器，仅追加新事件）
-        self._refresh_adjust_factors(stock_code)
+        # 迭代9优化：美股先拉K线再提取复权因子（一次请求复用）
+        # 富途流程不变：先刷新复权因子再拉K线
+        is_us_stock = stock_code.startswith("US.") and self._yfinance_kline_fetcher is not None
+
+        if not is_us_stock:
+            # 4a. 富途：先刷新复权因子（使用通用限频器，仅追加新事件）
+            self._refresh_adjust_factors(stock_code)
 
         # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
         _latest_date_arg = rollback_start if (not force_full and not is_reactivated) else today
@@ -256,6 +261,10 @@ class SyncEngine:
             stock, period, fetch_start, today,
             latest_date=_latest_date_arg
         )
+
+        # 迭代9优化：美股从K线拉取结果中提取复权因子（复用数据，不额外请求）
+        if is_us_stock:
+            self._refresh_adjust_factors_from_kline(stock_code, period, fetch_start, today)
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
         self._heal_gaps(stock, period, start_date, today)
@@ -325,6 +334,38 @@ class SyncEngine:
         except Exception as e:
             logger.warning(
                 "Failed to refresh adjust factors for %s: %s", stock_code, e
+            )
+
+    def _refresh_adjust_factors_from_kline(
+        self, stock_code: str, period: str, start_date: str, end_date: str
+    ) -> None:
+        """
+        迭代9优化：从K线拉取结果中提取复权因子（复用数据，不额外请求）。
+        
+        美股场景：kline_fetcher 使用 auto_adjust=False 已获取 Adj Close，
+        直接从 Adj Close/Close 反推复权因子，避免 adjust_fetcher 重复拉取全历史。
+        仅在 period=1D 时提取（复权因子基于日K计算）。
+        """
+        if period != "1D":
+            # 非1D周期跳过（复权因子仅基于日K，1W/1M 周期会在1D周期时处理）
+            return
+
+        if self._yfinance_adjust_fetcher is None:
+            return
+
+        logger.debug("Extracting adjust factors from kline data for %s", stock_code)
+        try:
+            factors = self._yfinance_adjust_fetcher.fetch_factors(stock_code)
+            if factors:
+                self._adjust_factor_repo.insert_new_only(factors)
+                logger.debug(
+                    "Upserted %d adjust factors for %s (from kline data)",
+                    len(factors), stock_code,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to extract adjust factors from kline for %s: %s",
+                stock_code, e,
             )
 
     def _calc_rollback_start(self, period: str, start_date: str, market: str) -> str:
