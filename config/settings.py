@@ -76,6 +76,13 @@ WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")          # uvicorn 绑定地址，
 WEB_ACCESS_TOKEN = os.getenv("WEB_ACCESS_TOKEN", "")   # 访问 Token，留空不启用鉴权
 
 # ============================================================
+# yfinance 美股数据源配置（迭代9新增）
+# ============================================================
+YFINANCE_PROXY = os.getenv("YFINANCE_PROXY", "")  # HTTP代理地址，如 http://127.0.0.1:7890
+YFINANCE_REQUEST_INTERVAL = float(os.getenv("YFINANCE_REQUEST_INTERVAL", "0.5"))  # 请求间隔（秒）
+YFINANCE_MAX_RETRIES = int(os.getenv("YFINANCE_MAX_RETRIES", "3"))  # 最大重试次数
+
+# ============================================================
 # 系统版本号（硬编码，随代码发布更新，不依赖 .env 配置文件）
 # ============================================================
 APP_VERSION = "v0.8.7-patch"

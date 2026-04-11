@@ -18,6 +18,11 @@ from futu_wrap.kline_fetcher import KlineFetcher
 from models.enums import SyncStatus
 from models.stock import Stock
 
+# 迭代9：yfinance 美股数据源（可选依赖，仅在美股同步时使用）
+from yfinance_wrap.client import YFinanceClient
+from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
+from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +46,10 @@ class SyncEngine:
         gap_detector: GapDetector,
         validator: KlineValidator,
         general_rate_limiter: GeneralRateLimiter,
+        # 迭代9：yfinance 美股数据源（可选，为 None 时美股同步不可用）
+        yfinance_kline_fetcher: YFinanceKlineFetcher = None,
+        yfinance_adjust_fetcher: YFinanceAdjustFetcher = None,
+        yfinance_calendar_fetcher = None,  # YFinanceCalendarFetcher
     ):
         self._kline_repo = kline_repo
         self._calendar_repo = calendar_repo
@@ -53,6 +62,10 @@ class SyncEngine:
         self._gap_detector = gap_detector
         self._validator = validator
         self._general_rate_limiter = general_rate_limiter
+        # 迭代9：yfinance 美股数据源
+        self._yfinance_kline_fetcher = yfinance_kline_fetcher
+        self._yfinance_adjust_fetcher = yfinance_adjust_fetcher
+        self._yfinance_calendar_fetcher = yfinance_calendar_fetcher
 
     def recover_running_states(self) -> List[str]:
         """
@@ -262,7 +275,10 @@ class SyncEngine:
         )
 
     def _ensure_calendar(self, market: str, start_date: str, end_date: str) -> None:
-        """确保交易日历已存在，不足则从 API 拉取补充（使用通用限频器）。"""
+        """确保交易日历已存在，不足则从 API 拉取补充。
+        
+        迭代9：按市场码路由日历 Fetcher（US → yfinance，其他 → 富途）。
+        """
         calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
 
         if not self._calendar_repo.has_calendar(calendar_market, start_date, end_date):
@@ -270,10 +286,16 @@ class SyncEngine:
                 "Fetching trading calendar for %s [%s~%s]",
                 calendar_market, start_date, end_date
             )
-            trading_days = self._general_rate_limiter.execute_with_retry(
-                self._calendar_fetcher.fetch,
-                calendar_market, start_date, end_date
-            )
+            # 迭代9：美股使用 yfinance 日历（pandas-market-calendars），其他使用富途
+            if calendar_market == "US" and self._yfinance_calendar_fetcher is not None:
+                trading_days = self._yfinance_calendar_fetcher.fetch(
+                    calendar_market, start_date, end_date
+                )
+            else:
+                trading_days = self._general_rate_limiter.execute_with_retry(
+                    self._calendar_fetcher.fetch,
+                    calendar_market, start_date, end_date
+                )
             if trading_days:
                 self._calendar_repo.insert_many(calendar_market, trading_days)
                 logger.info(
@@ -281,13 +303,20 @@ class SyncEngine:
                 )
 
     def _refresh_adjust_factors(self, stock_code: str) -> None:
-        """从 API 拉取复权因子，仅追加新事件（使用通用限频器）。"""
+        """从 API 拉取复权因子，仅追加新事件。
+        
+        迭代9：按市场码路由 Fetcher（US → yfinance，其他 → 富途）。
+        """
         logger.debug("Refreshing adjust factors for %s", stock_code)
         try:
-            factors = self._general_rate_limiter.execute_with_retry(
-                self._adjust_factor_fetcher.fetch_factors,
-                stock_code
-            )
+            # 迭代9：美股使用 yfinance adjust fetcher
+            if stock_code.startswith("US.") and self._yfinance_adjust_fetcher is not None:
+                factors = self._yfinance_adjust_fetcher.fetch_factors(stock_code)
+            else:
+                factors = self._general_rate_limiter.execute_with_retry(
+                    self._adjust_factor_fetcher.fetch_factors,
+                    stock_code
+                )
             if factors:
                 self._adjust_factor_repo.insert_new_only(factors)
                 logger.debug(
@@ -586,11 +615,18 @@ class SyncEngine:
         self, stock_code: str, period: str, start_date: str, end_date: str
     ) -> list:
         """
-        分页拉取K线。
-        RateLimiter.acquire() 已内置在 KlineFetcher.fetch() 的每页循环中，
-        此处直接调用，无需外层 execute_with_retry 包装。
+        拉取K线（分页/单次，取决于数据源）。
+        
+        迭代9：按市场码路由 Fetcher（US → yfinance，其他 → 富途）。
         """
-        return self._kline_fetcher.fetch(stock_code, period, start_date, end_date)
+        fetcher = self._get_kline_fetcher(stock_code)
+        return fetcher.fetch(stock_code, period, start_date, end_date)
+
+    def _get_kline_fetcher(self, stock_code: str):
+        """按市场码返回对应的 K线 Fetcher。"""
+        if stock_code.startswith("US.") and self._yfinance_kline_fetcher is not None:
+            return self._yfinance_kline_fetcher
+        return self._kline_fetcher
 
     def repair_one(
         self,
