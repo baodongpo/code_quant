@@ -69,11 +69,25 @@ class YFinanceClient:
         self._setup_proxy()
 
     def _setup_proxy(self) -> None:
-        """配置代理环境变量，让 curl_cffi 自动使用。"""
+        """配置代理环境变量，让 curl_cffi 自动使用。
+
+        同时设置 NO_PROXY 排除本地地址，避免富途 OpenD (127.0.0.1:11111)
+        等本地服务请求被代理拦截。
+        """
         if self._proxy:
             os.environ["HTTP_PROXY"] = self._proxy
             os.environ["HTTPS_PROXY"] = self._proxy
-            logger.info("yfinance proxy configured via env: %s", self._proxy)
+            # NO_PROXY：本地回环地址不走代理，保护富途 OpenD 等本地服务
+            no_proxy = os.environ.get("NO_PROXY", "")
+            local_hosts = "localhost,127.0.0.1,0.0.0.0"
+            if not no_proxy:
+                os.environ["NO_PROXY"] = local_hosts
+            elif "127.0.0.1" not in no_proxy:
+                os.environ["NO_PROXY"] = f"{no_proxy},{local_hosts}"
+            logger.info(
+                "yfinance proxy configured via env: %s (NO_PROXY=%s)",
+                self._proxy, os.environ["NO_PROXY"],
+            )
         else:
             # 清除可能存在的旧代理配置
             os.environ.pop("HTTP_PROXY", None)
