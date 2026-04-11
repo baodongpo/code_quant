@@ -43,8 +43,7 @@ class YFinanceCalendarFetcher:
         import pandas_market_calendars as mcal
 
         if market != "US":
-            logger.warning("YFinanceCalendarFetcher only supports market='US', got '%s'", market)
-            return []
+            raise ValueError(f"YFinanceCalendarFetcher only supports market='US', got '{market}'")
 
         try:
             nyse = mcal.get_calendar("NYSE")

@@ -593,7 +593,21 @@ class SyncEngine:
           - latest_date 为 None 时，全部使用 insert_many（兼容旧调用路径）。
         """
         stock_code = stock.stock_code
-        bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
+
+        # 迭代9优化：美股1D周期使用 fetch_and_extract_adj_close，
+        # 同时缓存 Adj Close 到 adjust_fetcher，避免后续重复请求
+        is_us_stock = stock_code.startswith("US.") and self._yfinance_kline_fetcher is not None
+        if is_us_stock and period == "1D" and self._yfinance_adjust_fetcher is not None:
+            bars, adj_close_map = self._yfinance_kline_fetcher.fetch_and_extract_adj_close(
+                stock_code, period, start_date, end_date,
+            )
+            if adj_close_map:
+                close_map = {bar.trade_date: bar.close for bar in bars if bar.close}
+                self._yfinance_adjust_fetcher.cache_adj_close(
+                    stock_code, period, start_date, end_date, adj_close_map, close_map,
+                )
+        else:
+            bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
 
         rows_fetched = len(bars)
         if not bars:

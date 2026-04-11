@@ -15,6 +15,7 @@ yfinance_wrap/adjust_fetcher.py — 美股复权因子拉取
 """
 
 import logging
+import time
 from datetime import date
 from typing import List, Optional
 
@@ -53,14 +54,19 @@ class YFinanceAdjustFetcher:
         start_date: str,
         end_date: str,
         adj_close_map: dict,
+        close_map: dict = None,
     ) -> None:
         """
-        缓存 kline_fetcher 拉取的 Adj Close 数据，避免重复请求。
+        缓存 kline_fetcher 拉取的 Adj Close 和 Close 数据，避免重复请求。
 
         由 SyncEngine 在 kline_fetcher 拉取后调用。
+        close_map 为可选，提供后可实现完全无请求的复权因子计算。
         """
         key = (stock_code, period, start_date, end_date)
-        self._adj_close_cache[key] = adj_close_map
+        self._adj_close_cache[key] = {
+            "adj_close": adj_close_map,
+            "close": close_map or {},
+        }
         logger.debug(
             "Cached adj_close for %s [%s] %s~%s: %d entries",
             stock_code, period, start_date, end_date, len(adj_close_map),
@@ -82,16 +88,32 @@ class YFinanceAdjustFetcher:
         end_plus_one = (date.today() + __import__("datetime").timedelta(days=1)).strftime("%Y-%m-%d")
 
         # 尝试从缓存获取 Adj Close
-        adj_close_map = self._find_cached_adj_close(stock_code, DEFAULT_HISTORY_START, today)
+        cached = self._find_cached_adj_close(stock_code, DEFAULT_HISTORY_START, today)
 
-        if adj_close_map:
-            logger.debug("Using cached adj_close for %s factors", stock_code)
-            # 还需要 Close 价格来计算 ratio，缓存中只有 adj_close
-            # 仍需从 kline 数据中获取 Close，但 kline_fetcher 的 bars 已在内存
-            # 使用 _extract_factors_from_kline_fetcher 方法
-            return self._extract_factors_via_kline(stock_code)
+        if cached and cached.get("adj_close") and cached.get("close"):
+            logger.debug("Using cached adj_close+close for %s factors (no API request)", stock_code)
+            adj_close_map = cached["adj_close"]
+            close_map = cached["close"]
+            factors = []
+            for trade_date, adj_close in adj_close_map.items():
+                close = close_map.get(trade_date)
+                if close is None or close == 0:
+                    continue
+                ratio = adj_close / close
+                if abs(ratio - 1.0) > 1e-6:
+                    factors.append(AdjustFactor(
+                        stock_code=stock_code,
+                        ex_date=trade_date,
+                        forward_factor=round(ratio, 10),
+                        forward_factor_b=0.0,
+                        backward_factor=round(1.0 / ratio, 10),
+                        backward_factor_b=0.0,
+                        factor_source="yfinance",
+                    ))
+            factors.sort(key=lambda f: f.ex_date)
+            return factors
 
-        # 缓存未命中，通过 kline_fetcher 拉取（复用，不重复请求）
+        # 缓存不完整（缺少 close），需通过 kline_fetcher 拉取
         if self._kline_fetcher is not None:
             return self._extract_factors_via_kline(stock_code)
 
@@ -101,7 +123,11 @@ class YFinanceAdjustFetcher:
     def _find_cached_adj_close(
         self, stock_code: str, start_date: str, end_date: str
     ) -> Optional[dict]:
-        """在缓存中查找匹配的 Adj Close 数据。"""
+        """在缓存中查找匹配的 Adj Close 数据。
+
+        Returns:
+            {"adj_close": {date: val}, "close": {date: val}} 或 None
+        """
         for key, value in self._adj_close_cache.items():
             sc, period, sd, ed = key
             if sc == stock_code and sd <= start_date and ed >= end_date:
@@ -156,8 +182,7 @@ class YFinanceAdjustFetcher:
                         "Retrying in %ds...",
                         stock_code, attempt + 1, self._client.max_retries, e, wait,
                     )
-                    time.sleep(wait) if not hasattr(self, '_time') else None
-                    import time; time.sleep(wait)
+                    time.sleep(wait)
                 else:
                     logger.error(
                         "yfinance adjust fetch failed for %s after %d retries: %s",
