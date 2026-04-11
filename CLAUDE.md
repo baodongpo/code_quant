@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **迭代8.6-patch 已完成**（2026-03-26），最新 tag `v0.8.6-patch`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅
+- **迭代8.7-patch 已完成**（2026-04-11），最新 tag `v0.8.7-patch`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **下一步**：待规划下一迭代
+- **当前迭代**：迭代9 — yfinance 美股数据源接入（进行中，分支 `feat/iter9-yfinance`）
 
 ---
 
@@ -23,7 +23,7 @@
 | 项目 | 选型 |
 |------|------|
 | 数据库 | SQLite（WAL 模式） |
-| 数据源 | 富途 OpenD（futu-api） |
+| 数据源 | A股/港股：富途 OpenD（futu-api）；美股：yfinance（Yahoo Finance） |
 | 复权策略 | 存原始价格 + adjust_factors 表，算法层动态前复权 |
 | K线粒度 | 日K（1D）、周K（1W）、月K（1M） |
 | 虚拟环境 | mamba，路径 `./env_quant`，Python 3.10 |
@@ -40,6 +40,7 @@ models/              # enums, Stock, KlineBar, AdjustFactor dataclass
 db/schema.py         # 所有 DDL，init_db() 建表
 db/repositories/     # 7个 repo（stocks/kline/calendar/sync_meta/gap/adjust_factor/subscription）
 futu_wrap/           # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
+yfinance_wrap/       # 【迭代9新增】YFinanceClient, YFinanceKlineFetcher, YFinanceAdjustFetcher（美股数据源）
 core/                # RateLimiter, WatchlistManager, AdjustmentService, GapDetector, KlineValidator, SyncEngine
 core/indicator_engine.py  # 【迭代3新增】7个技术指标计算 + 信号判断
 api/                 # 【迭代3新增】FastAPI 后端 REST API（只读）
@@ -192,6 +193,14 @@ tail -f logs/sync_$(date +%Y%m%d).log
 - [x] 迭代8.6-patch（全部完成 2026-03-26，tag v0.8.6-patch）：
   - [x] FEAT-stats-no-data：`stats` 命令增加 `no_data` 状态空洞统计显示
   - [x] DOC-gap-repo：更新 `upsert_gaps()` 注释，明确说明 `no_data` 状态处理逻辑
+- [x] 迭代8.7-patch（全部完成 2026-04-11，tag v0.8.7-patch）：
+  - [x] FEAT-check-gaps-no-data：check-gaps 排除 no_data 空洞
+- [ ] 迭代9（进行中，分支 `feat/iter9-yfinance`）：
+  - [ ] FEAT-yfinance：新增 yfinance 美股数据源，替代富途获取美股K线数据
+  - [ ] FEAT-multi-source：多数据源路由架构（A股/港股→富途，美股→yfinance）
+  - [ ] FEAT-us-adjust：美股复权因子获取与前复权计算
+  - [ ] FEAT-us-sync：美股K线增量同步（日K/周K/月K）
+  - [ ] 待PM产出PRD后细化
 
 ---
 

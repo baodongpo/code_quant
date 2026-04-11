@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
+一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股数据源、yfinance 为美股数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
 
 **核心能力：**
 
@@ -646,7 +646,8 @@ code_quant/
 ├── db/                      # 数据库层
 │   ├── schema.py            # DDL + init_db()
 │   └── repositories/        # 7个 Repository（全部只读供 Web 层调用）
-├── futu_wrap/               # 富途 SDK 封装
+├── futu_wrap/               # 富途 SDK 封装（A股/港股数据源）
+├── yfinance_wrap/           # yfinance 封装（美股数据源）
 ├── models/                  # 数据模型（Stock / KlineBar / AdjustFactor）
 ├── config/settings.py       # 配置（从 .env 读取）
 ├── export/exporter.py       # 数据导出（CSV / Parquet）
@@ -709,3 +710,5 @@ code_quant/
 | 迭代8.4-patch | ✅ 已完成 | 空洞检测 BUG 修复：周K/月K日期格式不匹配、sync 修复历史空洞 |
 | 迭代8.5-patch | ✅ 已完成 | 临时停市空洞智能验证：引入 `no_data` 状态标记台风等临时停市日期，自动迁移 CHECK 约束 |
 | 迭代8.6-patch | ✅ 已完成 | no_data 状态完善：stats 命令显示 no_data 统计，upsert_gaps 注释完善 |
+| 迭代8.7-patch | ✅ 已完成 | check-gaps 排除 no_data 空洞 |
+| 迭代9 | 🚧 进行中 | yfinance 美股数据源接入、多数据源路由架构 |
