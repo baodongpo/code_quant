@@ -63,7 +63,7 @@ export const C = {
   // ── 图表 UI ──
   chartBg:       '#0d1117',
   panelBg:       '#161b22',
-  border:        '#21262d',
+  border:        '#2d333b',
   border2:       '#30363d',
   text:          '#e6edf3',
   textMuted:     '#8b949e',

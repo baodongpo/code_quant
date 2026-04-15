@@ -54,7 +54,14 @@ const HELP_ITEMS = [
   { iconType: 'dot',    color: '#b0bec5', text: '<b>灰色（底部观察）</b>：价格在防守线下方，但资金开始流入——可能正在酝酿变化' },
 ]
 
-const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, vpaDefender, signal, collapsed, onToggle }, ref) {
+/** 根据股票代码前缀返回价格轴单位 */
+function getPriceUnit(stockCode) {
+  if (stockCode?.startsWith('US.')) return '$'
+  if (stockCode?.startsWith('HK.')) return '港币'
+  return '元'
+}
+
+const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, vpaDefender, signal, collapsed, onToggle, stockCode }, ref) {
   const { stop_line = [], resistance_line = [], obv = [], obv_ma20 = [], signal: signalSeries = [] } = vpaDefender || {}
 
   // 最新有效信号
@@ -123,14 +130,16 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
       latestSignal={latestSignal}
       sigCfg={sigCfg}
       onToggle={onToggle}
+      stockCode={stockCode}
     />
   )
 })
 
 const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
-  dates, closes, stop_line, resistance_line, obv, obv_ma20, signalSeries, signal, latestSignal, sigCfg, onToggle,
+  dates, closes, stop_line, resistance_line, obv, obv_ma20, signalSeries, signal, latestSignal, sigCfg, onToggle, stockCode,
 }, ref) {
   const [showHelp, setShowHelp] = useState(false)
+  const priceUnit = getPriceUnit(stockCode)
   const option = useMemo(() => {
     if (!dates || dates.length === 0) return {}
     const zoomStart = Math.max(0, 100 - Math.round(120 / dates.length * 100))
@@ -214,10 +223,10 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
       }],
       yAxis: [
         // 左 Y 轴：价格（Stop_Line）
-        // 迭代8.3 FEAT-axis-name: 新增左轴名称（元）
+        // 迭代8.3 FEAT-axis-name: 新增左轴名称
         {
           scale:     true,
-          name: '元', nameLocation: 'end', nameGap: 4,
+          name: getPriceUnit(stockCode), nameLocation: 'end', nameGap: 4,
           nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },

@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
+一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股数据源、TuShare 为美股数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
 
 **核心能力：**
 
@@ -71,6 +71,14 @@ cp watchlist.json.example watchlist.json
         {"stock_code": "SH.600519", "name": "贵州茅台", "asset_type": "stock",
          "is_active": true, "lot_size": 100, "currency": "CNY"}
       ]
+    },
+    {
+      "market": "US",
+      "enabled": true,
+      "stocks": [
+        {"stock_code": "US.AAPL", "name": "Apple", "asset_type": "stock",
+         "is_active": true, "lot_size": 1, "currency": "USD"}
+      ]
     }
   ]
 }
@@ -134,12 +142,12 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 | 子命令 | 是否需要 OpenD | 说明 |
 |--------|--------------|------|
-| `sync` | **需要** | 历史数据采集 + 增量同步（默认命令）|
+| `sync` | A股/港股需要，美股不需要 | 历史数据采集 + 增量同步（默认命令）|
 | `migrate` | 不需要 | DB 表结构迁移 + watchlist 股票信息同步 |
 | `stats` | 不需要 | 打印同步状态与数据空洞汇总 |
 | `export` | 不需要 | 导出 K 线数据到 CSV / Parquet 文件 |
 | `check-gaps` | 不需要 | 独立空洞检测，结果写入 `data_gaps` 表 |
-| `repair` | **需要** | 强制 upsert 覆盖指定日期的 K 线数据 |
+| `repair` | A股/港股需要，美股不需要 | 强制 upsert 覆盖指定日期的 K 线数据 |
 
 ---
 
@@ -152,7 +160,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 **执行逻辑：**
 
-1. 连接富途 OpenD
+1. 连接富途 OpenD（watchlist 仅有美股时可跳过，进入 yfinance-only 模式）
 2. 读取 `watchlist.json`，与数据库做差异检测（新增 / 重激活 / 停用）
 3. 对所有活跃股票执行历史 K 线同步（日/周/月）
 4. 检测并修复数据空洞
@@ -338,7 +346,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
     [--period 1D [1W] [1M]]
 ```
 
-**需要富途 OpenD 连接。**
+**需要富途 OpenD 连接（美股除外：指定 `--stock US.xxx` 时仅需 yfinance）。**
 
 **参数说明：**
 
@@ -488,12 +496,14 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 `crontab -e` 添加：
 
 ```cron
-# A股/港股：每个交易日 17:00 同步（收盘后约 1 小时）
-0 17 * * 1-5 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
+# A股/港股：每个交易日 17:30 同步（收盘后约 1.5 小时）
+30 17 * * 1-5 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
 
-# 美股：每个交易日次日 06:00 同步（北京时间冬令时；夏令时改为 05:00）
-0 6 * * 2-6 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
+# 美股：次日 07:00 同步（固定安全时间，无需区分冬夏令时）
+0 7 * * 2-6 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
 ```
+
+> **美股同步时间说明**：美股收盘时间为北京时间次日 04:00（夏令）/ 05:00（冬令），盘后交易持续至 08:00/09:00。07:00 为固定安全时间，兼容两种时令，Yahoo Finance 此时已处理完前一交易日 EOD 数据，无需每年手动切换。
 
 > **注意**：cron 不继承 shell 环境，务必用虚拟环境的 Python **绝对路径**；macOS 需在「系统设置 → 隐私与安全 → 完全磁盘访问」授权 cron。
 
@@ -606,6 +616,12 @@ bars = adj_service.get_adjusted_klines(
 | `WEB_MODE` | `development` | `production` 时 serve 前端构建产物 |
 | `WEB_HOST` | `127.0.0.1` | uvicorn 绑定地址；`0.0.0.0` 开放局域网 |
 | `WEB_ACCESS_TOKEN` | 空（不鉴权）| 局域网访问 Token，留空则不启用 |
+| `YFINANCE_PROXY` | 空（已禁用）| yfinance HTTP 代理地址（已禁用，保留配置）|
+| `YFINANCE_REQUEST_INTERVAL` | `0.5` | yfinance 请求最小间隔（已禁用）|
+| `YFINANCE_MAX_RETRIES` | `3` | yfinance 请求最大重试次数（已禁用）|
+| `TUSHARE_TOKEN` | 空 | TuShare API Token（注册即获120积分试用）|
+| `TUSHARE_REQUEST_INTERVAL` | `1.2` | TuShare 请求最小间隔（50次/分钟）|
+| `US_STOCK_SOURCE` | `tushare` | 美股数据源：tushare（默认）/ yfinance（已禁用）|
 | `APP_VERSION` | `dev` | 系统版本号，前端导航栏展示，与 git tag 保持一致 |
 | `CORS_ORIGINS` | `http://localhost:5173` | 允许的跨域来源（开发模式）|
 | `RATE_LIMIT_MIN_INTERVAL` | `0.5` | 请求最小间隔（秒）|
@@ -646,7 +662,9 @@ code_quant/
 ├── db/                      # 数据库层
 │   ├── schema.py            # DDL + init_db()
 │   └── repositories/        # 7个 Repository（全部只读供 Web 层调用）
-├── futu_wrap/               # 富途 SDK 封装
+├── futu_wrap/               # 富途 SDK 封装（A股/港股数据源）
+├── yfinance_wrap/           # yfinance 封装（已禁用，保留代码）
+├── tushare_wrap/            # TuShare 封装（美股数据源）
 ├── models/                  # 数据模型（Stock / KlineBar / AdjustFactor）
 ├── config/settings.py       # 配置（从 .env 读取）
 ├── export/exporter.py       # 数据导出（CSV / Parquet）
@@ -709,3 +727,6 @@ code_quant/
 | 迭代8.4-patch | ✅ 已完成 | 空洞检测 BUG 修复：周K/月K日期格式不匹配、sync 修复历史空洞 |
 | 迭代8.5-patch | ✅ 已完成 | 临时停市空洞智能验证：引入 `no_data` 状态标记台风等临时停市日期，自动迁移 CHECK 约束 |
 | 迭代8.6-patch | ✅ 已完成 | no_data 状态完善：stats 命令显示 no_data 统计，upsert_gaps 注释完善 |
+| 迭代8.7-patch | ✅ 已完成 | check-gaps 排除 no_data 空洞 |
+| 迭代9 | ✅ 已完成 | yfinance 美股数据源接入、多数据源路由架构、定时同步配置统一 |
+| 迭代10 | ✅ 已完成 | TuShare 美股数据源替代 yfinance、复权因子近似计算、前端周K/月K屏蔽 |

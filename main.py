@@ -19,6 +19,9 @@ from config.settings import (
     DB_PATH, EXPORT_DIR, HEALTH_CHECK_INTERVAL, HEALTH_FILE,
     LOG_DIR, OPEND_HOST, OPEND_PORT,
     RECONNECT_BASE_INTERVAL, RECONNECT_MAX_RETRIES,
+    WATCHLIST_PATH,
+    YFINANCE_PROXY, YFINANCE_REQUEST_INTERVAL, YFINANCE_MAX_RETRIES,
+    TUSHARE_TOKEN, TUSHARE_REQUEST_INTERVAL, US_STOCK_SOURCE,
 )
 from core.adjustment_service import AdjustmentService
 from core.gap_detector import GapDetector
@@ -95,8 +98,16 @@ def setup_logging() -> None:
     root_logger.addHandler(console_handler)
 
 
-def build_dependencies(futu_client: FutuClient) -> dict:
-    """组装所有依赖对象（依赖注入）。"""
+def build_dependencies(
+    futu_client: FutuClient = None,
+    enable_tushare: bool = False,
+) -> dict:
+    """组装所有依赖对象（依赖注入）。
+
+    Args:
+        futu_client: 富途 OpenD 客户端，为 None 时富途功能不可用（美股独立运行）
+        enable_tushare: 是否初始化 TuShare 美股数据源
+    """
     # Repositories
     stock_repo = StockRepository(DB_PATH)
     kline_repo = KlineRepository(DB_PATH)
@@ -111,20 +122,43 @@ def build_dependencies(futu_client: FutuClient) -> dict:
     general_rate_limiter = GeneralRateLimiter()  # 其他接口：30s/35次
 
     # Futu API（KlineFetcher 持有 rate_limiter，每页调用前控频）
-    kline_fetcher = KlineFetcher(futu_client, kline_rate_limiter)
-    calendar_fetcher = CalendarFetcher(futu_client)
-    adjust_factor_fetcher = AdjustFactorFetcher(futu_client)
+    kline_fetcher = KlineFetcher(futu_client, kline_rate_limiter) if futu_client else None
+    calendar_fetcher = CalendarFetcher(futu_client) if futu_client else None
+    adjust_factor_fetcher = AdjustFactorFetcher(futu_client) if futu_client else None
+
+    # TuShare 美股数据源（迭代10）
+    tushare_kline_fetcher = None
+    tushare_adjust_fetcher = None
+    tushare_calendar_fetcher = None
+    if enable_tushare and TUSHARE_TOKEN:
+        from tushare_wrap import TuShareClient, TuShareKlineFetcher, TuShareAdjustFetcher, TuShareCalendarFetcher
+
+        ts_client = TuShareClient(token=TUSHARE_TOKEN)
+        tushare_kline_fetcher = TuShareKlineFetcher(ts_client)
+        tushare_adjust_fetcher = TuShareAdjustFetcher(ts_client)
+        tushare_calendar_fetcher = TuShareCalendarFetcher()
+        logger = logging.getLogger("main")
+        logger.info(
+            "TuShare data source enabled (request_interval=%.1fs)",
+            TUSHARE_REQUEST_INTERVAL,
+        )
+
+    # yfinance 美股数据源（迭代9，已禁用）
+    # 保留代码但不初始化，所有美股请求走 TuShare
+    yfinance_kline_fetcher = None
+    yfinance_adjust_fetcher = None
+    yfinance_calendar_fetcher = None
 
     # Core services
     validator = KlineValidator()
-    gap_detector = GapDetector(calendar_repo, kline_repo)
+    gap_detector = GapDetector(calendar_repo, kline_repo, gap_repo)
     adjustment_service = AdjustmentService(kline_repo, adjust_factor_repo)
 
     # Watchlist manager
     watchlist_manager = WatchlistManager(stock_repo, sync_meta_repo)
 
-    # Subscription manager
-    subscription_manager = SubscriptionManager(futu_client, kline_repo, sub_repo)
+    # Subscription manager（仅富途）
+    subscription_manager = SubscriptionManager(futu_client, kline_repo, sub_repo) if futu_client else None
 
     # Sync engine
     sync_engine = SyncEngine(
@@ -139,6 +173,12 @@ def build_dependencies(futu_client: FutuClient) -> dict:
         gap_detector=gap_detector,
         validator=validator,
         general_rate_limiter=general_rate_limiter,
+        yfinance_kline_fetcher=yfinance_kline_fetcher,
+        yfinance_adjust_fetcher=yfinance_adjust_fetcher,
+        yfinance_calendar_fetcher=yfinance_calendar_fetcher,
+        tushare_kline_fetcher=tushare_kline_fetcher,
+        tushare_adjust_fetcher=tushare_adjust_fetcher,
+        tushare_calendar_fetcher=tushare_calendar_fetcher,
     )
 
     return {
@@ -171,18 +211,36 @@ def write_health(status: str, detail: str = "") -> None:
         logging.getLogger("main").warning("Failed to write health file: %s", e)
 
 
+def _has_us_stocks() -> bool:
+    """检查 watchlist 中是否存在美股。"""
+    if not os.path.exists(WATCHLIST_PATH):
+        return False
+    try:
+        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for market_node in data.get("markets", []):
+            if market_node.get("market") == "US" and market_node.get("enabled", True):
+                for item in market_node.get("stocks", []):
+                    if item.get("is_active", True):
+                        return True
+    except (json.JSONDecodeError, OSError):
+        pass
+    return False
+
+
 def _run_sync_once(
     futu_client: FutuClient,
     logger: logging.Logger,
+    enable_tushare: bool = False,
 ) -> bool:
     """
     执行一次完整的同步流程（连接已建立）。
     返回 True 表示正常完成，返回 False 表示检测到断线需要重连。
     抛出 KeyboardInterrupt / RuntimeError 等非连接异常由调用方处理。
     """
-    deps = build_dependencies(futu_client)
+    deps = build_dependencies(futu_client, enable_tushare=enable_tushare)
     watchlist_manager: WatchlistManager = deps["watchlist_manager"]
-    subscription_manager: SubscriptionManager = deps["subscription_manager"]
+    subscription_manager = deps["subscription_manager"]
     sync_engine: SyncEngine = deps["sync_engine"]
 
     # 启动恢复：重置宕机残留的 RUNNING 状态（Module C）
@@ -205,11 +263,16 @@ def _run_sync_once(
         )
 
     # 注册实时推送 handler（必须在 sync_subscriptions 之前，确保订阅建立时 handler 已就绪）
-    subscription_manager.setup_push_handler()
+    # 迭代9：subscription_manager 可能为 None（无富途连接时），美股无实时推送
+    if subscription_manager:
+        subscription_manager.setup_push_handler()
 
     # 同步订阅状态：活跃股票订阅，非活跃取消（Module B）
-    logger.info("Syncing subscriptions...")
-    subscription_manager.sync_subscriptions(active_stocks)
+    # 迭代9：仅富途股票参与订阅，美股跳过
+    if subscription_manager:
+        futu_stocks = [s for s in active_stocks if not s.stock_code.startswith("US.")]
+        logger.info("Syncing subscriptions for %d futu stocks...", len(futu_stocks))
+        subscription_manager.sync_subscriptions(futu_stocks)
 
     if not active_stocks:
         logger.warning("No active stocks in watchlist. Nothing to sync.")
@@ -241,13 +304,24 @@ def _run_sync_once(
 
 
 def cmd_sync(_args) -> None:
-    """执行历史数据同步（默认子命令），含 OpenD 断线指数退避重连。"""
+    """执行历史数据同步（默认子命令），含 OpenD 断线指数退避重连。
+
+    迭代9：OpenD 连接变为可选 — 如果 watchlist 中仅有美股，
+    则无需 OpenD 即可运行。如果同时有 A股/港股和美股，
+    OpenD 失败时美股部分仍可独立完成。
+    """
     setup_logging()
     logger = logging.getLogger("main")
+
+    # 检测是否需要 TuShare（watchlist 中是否有美股）
+    has_us = _has_us_stocks()
+
     logger.info("=" * 60)
     logger.info("AI Quant Data Subsystem starting")
     logger.info("DB: %s", DB_PATH)
     logger.info("OpenD: %s:%d", OPEND_HOST, OPEND_PORT)
+    if has_us:
+        logger.info("TuShare: enabled (US stocks detected in watchlist)")
     logger.info("=" * 60)
 
     # 注册 SIGTERM 处理器（systemd stop / kill 信号）
@@ -258,22 +332,32 @@ def cmd_sync(_args) -> None:
     init_db(DB_PATH)
     logger.info("Database initialized at %s", DB_PATH)
 
+    # 尝试连接 OpenD（A股/港股需要，美股不需要）
     futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
+    futu_connected = False
     retry_count = 0
 
     try:
-        # 初始连接
-        try:
-            futu_client.connect()
-        except Exception as e:
+        futu_client.connect()
+        futu_connected = True
+    except Exception as e:
+        if has_us:
+            # 有美股时，OpenD 不可用仍可继续（仅同步美股）
+            logger.warning("Failed to connect to OpenD: %s", e)
+            logger.warning("Continuing with TuShare-only mode (US stocks only)")
+            write_health("degraded", f"OpenD unavailable, TuShare-only mode: {e}")
+            futu_client = None
+        else:
+            # 无美股时，OpenD 不可用则退出
             logger.error("Failed to connect to OpenD: %s", e)
             logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
             write_health("error", f"OpenD connection failed: {e}")
             sys.exit(1)
 
+    try:
         while not _shutdown_requested:
             try:
-                _run_sync_once(futu_client, logger)
+                _run_sync_once(futu_client, logger, enable_tushare=has_us)
                 # 正常完成后退出循环（批处理模式：跑完即退）
                 break
 
@@ -325,8 +409,9 @@ def cmd_sync(_args) -> None:
         logger.info("Interrupted by user")
         write_health("stopped", "Interrupted by user (KeyboardInterrupt)")
     finally:
-        futu_client.disconnect()
-        logger.info("Disconnected from OpenD")
+        if futu_client:
+            futu_client.disconnect()
+            logger.info("Disconnected from OpenD")
         logger.info("AI Quant Data Subsystem stopped")
 
 
@@ -762,10 +847,10 @@ def cmd_check_gaps(args) -> None:
 
 def cmd_repair(args) -> None:
     """
-    K线数据强制修复子命令（需要 Futu OpenD 连接）。
+    K线数据强制修复子命令。
 
-    对指定股票/周期/日期执行强制 upsert 覆盖写入，用于手动修复异常数据。
-    不修改 sync_metadata 表。
+    迭代10：美股走 TuShare，A股/港股走富途 OpenD。
+    如果 --stock 指定美股，则无需 OpenD 连接。
     """
     # 参数验证：--date 格式
     try:
@@ -776,7 +861,7 @@ def cmd_repair(args) -> None:
 
     today_date = date.today()
     if target_date > today_date:
-        print(f"\nWARNING: --date {args.date} is in the future. Futu API may return empty data.\n")
+        print(f"\nWARNING: --date {args.date} is in the future. API may return empty data.\n")
 
     setup_logging()
     logger = logging.getLogger("main.repair")
@@ -788,18 +873,24 @@ def cmd_repair(args) -> None:
     # 初始化数据库
     init_db(DB_PATH)
 
-    # 连接 Futu OpenD
-    futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
-    try:
-        futu_client.connect()
-    except Exception as e:
-        logger.error("Failed to connect to OpenD: %s", e)
-        logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
-        sys.exit(1)
+    # 判断是否需要富途连接（A股/港股需要，美股不需要）
+    is_us_only = args.stock and args.stock.startswith("US.")
+    has_us = _has_us_stocks()
+
+    # 连接富途 OpenD（仅 A股/港股需要）
+    futu_client = None
+    if not is_us_only:
+        futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
+        try:
+            futu_client.connect()
+        except Exception as e:
+            logger.error("Failed to connect to OpenD: %s", e)
+            logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
+            sys.exit(1)
 
     try:
-        deps = build_dependencies(futu_client)
-        stock_repo = deps["stock_repo"]   # P2-02：直接用 deps 中的实例，避免重复实例化
+        deps = build_dependencies(futu_client, enable_tushare=has_us or is_us_only)
+        stock_repo = deps["stock_repo"]
         sync_engine: SyncEngine = deps["sync_engine"]
 
         # 确定修复股票列表
@@ -936,8 +1027,9 @@ def cmd_repair(args) -> None:
         print("=" * 64 + "\n")
 
     finally:
-        futu_client.disconnect()
-        logger.info("Disconnected from OpenD")
+        if futu_client:
+            futu_client.disconnect()
+            logger.info("Disconnected from OpenD")
 
 
 def main() -> None:
@@ -1000,7 +1092,7 @@ def main() -> None:
     # 子命令：repair
     sub_repair = subparsers.add_parser(
         "repair",
-        help="强制 upsert 覆盖指定日期的 K 线数据（需要富途 OpenD 连接）"
+        help="强制 upsert 覆盖指定日期的 K 线数据（A股/港股需 OpenD，美股走 TuShare）"
     )
     sub_repair.add_argument(
         "--date", dest="date", required=True, metavar="YYYY-MM-DD",

@@ -28,10 +28,11 @@
  * @param mainRef   - 主图 ReactECharts 组件 ref
  * @param subRefs   - 副图 ReactECharts 组件 ref 数组 [macdRef, rsiRef, kdjRef, vpaRef, ...]
  * @param collapsed - 折叠状态对象 { MACD, RSI, KDJ, VPA, ... }，用于触发 effect 重绑定
+ * @param stockCode - 当前股票代码，变化时面板 key 重建 ECharts 实例，需重绑定
  */
 import { useEffect } from 'react'
 
-export default function useChartSync(mainRef, subRefs, collapsed) {
+export default function useChartSync(mainRef, subRefs, collapsed, stockCode) {
   useEffect(() => {
     // 用外部变量持有 cleanup 引用，确保 useEffect 返回函数能正确调用
     // （setTimeout 内部的 return 会被 setTimeout 丢弃，不能直接 return）
@@ -125,5 +126,5 @@ export default function useChartSync(mainRef, subRefs, collapsed) {
       cleanup?.()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainRef, ...subRefs, collapsed])
+  }, [mainRef, ...subRefs, collapsed, stockCode])
 }

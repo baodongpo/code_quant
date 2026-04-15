@@ -23,9 +23,18 @@ import React, { useMemo, forwardRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { C } from '../utils/colors.js'
 
-const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers = true }, ref) {
+/** 根据股票代码前缀返回市场相关的显示配置 */
+function getMarketDisplay(stockCode) {
+  if (stockCode?.startsWith('US.')) return { priceUnit: '$', volUnit: 'M股', volDivisor: 1_000_000 }
+  if (stockCode?.startsWith('HK.')) return { priceUnit: '港币', volUnit: '万股', volDivisor: 10_000 }
+  return { priceUnit: '元', volUnit: '万股', volDivisor: 10_000 }
+}
+
+const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers = true, stockCode }, ref) {
   const option = useMemo(() => {
     if (!bars || bars.length === 0) return {}
+
+    const { priceUnit, volUnit, volDivisor } = getMarketDisplay(stockCode)
 
     const dates  = bars.map(b => b.date)
     const candle = bars.map(b => [b.open, b.close, b.low, b.high])
@@ -135,7 +144,7 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
           const lines = [
             `<b>${bar.date}</b>`,
             `开: ${bar.open}  高: ${bar.high}  低: ${bar.low}  收: <b>${bar.close}</b>`,
-            `量: ${(bar.volume / 10000).toFixed(0)}万股`,
+            `量: ${(bar.volume / volDivisor).toFixed(0)}${volUnit}`,
             bar.pe_ratio != null ? `PE: ${bar.pe_ratio}` : '',
             bar.pb_ratio != null ? `PB: ${bar.pb_ratio}` : '',
           ]
@@ -202,7 +211,7 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
         // 迭代8.3 FEAT-axis-name: 新增价格轴名称
         {
           scale: true, gridIndex: 0,
-          name: '元', nameLocation: 'end', nameGap: 4,
+          name: priceUnit, nameLocation: 'end', nameGap: 4,
           nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },
@@ -211,7 +220,7 @@ const MainChart = forwardRef(function MainChart({ bars, indicators, showMarkers 
         // 迭代8.3 FEAT-axis-name: 新增成交量轴名称
         {
           scale: true, gridIndex: 1,
-          name: '万股', nameLocation: 'end', nameGap: 4,
+          name: volUnit, nameLocation: 'end', nameGap: 4,
           nameTextStyle: { color: C.textMuted, fontSize: 10 },
           splitLine: { lineStyle: { color: C.gridLine, type: 'dashed' } },
           axisLabel: { color: C.textMuted, fontSize: 10, width: 52, overflow: 'truncate' },

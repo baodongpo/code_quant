@@ -18,6 +18,14 @@ from futu_wrap.kline_fetcher import KlineFetcher
 from models.enums import SyncStatus
 from models.stock import Stock
 
+# 迭代9：yfinance 美股数据源（已禁用，保留代码）
+from yfinance_wrap.client import YFinanceClient
+from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
+from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
+
+# 迭代10：TuShare 美股数据源（主数据源）
+from tushare_wrap import TuShareClient, TuShareKlineFetcher, TuShareAdjustFetcher, TuShareCalendarFetcher
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +49,14 @@ class SyncEngine:
         gap_detector: GapDetector,
         validator: KlineValidator,
         general_rate_limiter: GeneralRateLimiter,
+        # 迭代9：yfinance 美股数据源（已禁用，保留参数兼容）
+        yfinance_kline_fetcher: YFinanceKlineFetcher = None,
+        yfinance_adjust_fetcher: YFinanceAdjustFetcher = None,
+        yfinance_calendar_fetcher = None,  # YFinanceCalendarFetcher
+        # 迭代10：TuShare 美股数据源（主数据源）
+        tushare_kline_fetcher: TuShareKlineFetcher = None,
+        tushare_adjust_fetcher: TuShareAdjustFetcher = None,
+        tushare_calendar_fetcher: TuShareCalendarFetcher = None,
     ):
         self._kline_repo = kline_repo
         self._calendar_repo = calendar_repo
@@ -53,6 +69,14 @@ class SyncEngine:
         self._gap_detector = gap_detector
         self._validator = validator
         self._general_rate_limiter = general_rate_limiter
+        # 迭代9：yfinance 美股数据源（已禁用）
+        self._yfinance_kline_fetcher = yfinance_kline_fetcher
+        self._yfinance_adjust_fetcher = yfinance_adjust_fetcher
+        self._yfinance_calendar_fetcher = yfinance_calendar_fetcher
+        # 迭代10：TuShare 美股数据源（主数据源）
+        self._tushare_kline_fetcher = tushare_kline_fetcher
+        self._tushare_adjust_fetcher = tushare_adjust_fetcher
+        self._tushare_calendar_fetcher = tushare_calendar_fetcher
 
     def recover_running_states(self) -> List[str]:
         """
@@ -230,10 +254,15 @@ class SyncEngine:
         # 3. 确保交易日历已存在（使用通用限频器）
         self._ensure_calendar(stock.market, start_date, today)
 
-        # 4. 刷新复权因子（使用通用限频器，仅追加新事件）
-        self._refresh_adjust_factors(stock_code)
+        # 迭代10：美股使用 TuShare（先拉K线，再单独拉复权因子）
+        # 富途流程不变：先刷新复权因子再拉K线
+        is_us_stock = stock_code.startswith("US.") and self._tushare_kline_fetcher is not None
 
-        # 5. 拉取增量数据（先拉取再检测空洞，避免初次全量同步时双倍 API 调用）
+        if not is_us_stock:
+            # 4a. 富途：先刷新复权因子（使用通用限频器，仅追加新事件）
+            self._refresh_adjust_factors(stock_code)
+
+        # 5. 拉取增量数据
         _latest_date_arg = rollback_start if (not force_full and not is_reactivated) else today
         logger.info(
             "[%s][%s] calling _fetch_and_store: fetch_start=%s, end=%s, latest_date=%s",
@@ -243,6 +272,10 @@ class SyncEngine:
             stock, period, fetch_start, today,
             latest_date=_latest_date_arg
         )
+
+        # 迭代10：美股使用 TuShare，单独拉取复权因子
+        if is_us_stock:
+            self._refresh_adjust_factors_from_tushare(stock_code, fetch_start, today)
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
         self._heal_gaps(stock, period, start_date, today)
@@ -262,7 +295,10 @@ class SyncEngine:
         )
 
     def _ensure_calendar(self, market: str, start_date: str, end_date: str) -> None:
-        """确保交易日历已存在，不足则从 API 拉取补充（使用通用限频器）。"""
+        """确保交易日历已存在，不足则从 API 拉取补充。
+        
+        迭代10：按市场码路由日历 Fetcher（US → TuShare，其他 → 富途）。
+        """
         calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
 
         if not self._calendar_repo.has_calendar(calendar_market, start_date, end_date):
@@ -270,10 +306,16 @@ class SyncEngine:
                 "Fetching trading calendar for %s [%s~%s]",
                 calendar_market, start_date, end_date
             )
-            trading_days = self._general_rate_limiter.execute_with_retry(
-                self._calendar_fetcher.fetch,
-                calendar_market, start_date, end_date
-            )
+            # 迭代10：美股使用 TuShare 日历（pandas-market-calendars），其他使用富途
+            if calendar_market == "US" and self._tushare_calendar_fetcher is not None:
+                trading_days = self._tushare_calendar_fetcher.fetch(
+                    calendar_market, start_date, end_date
+                )
+            else:
+                trading_days = self._general_rate_limiter.execute_with_retry(
+                    self._calendar_fetcher.fetch,
+                    calendar_market, start_date, end_date
+                )
             if trading_days:
                 self._calendar_repo.insert_many(calendar_market, trading_days)
                 logger.info(
@@ -281,13 +323,20 @@ class SyncEngine:
                 )
 
     def _refresh_adjust_factors(self, stock_code: str) -> None:
-        """从 API 拉取复权因子，仅追加新事件（使用通用限频器）。"""
+        """从 API 拉取复权因子，仅追加新事件。
+        
+        迭代10：按市场码路由 Fetcher（US → TuShare，其他 → 富途）。
+        """
         logger.debug("Refreshing adjust factors for %s", stock_code)
         try:
-            factors = self._general_rate_limiter.execute_with_retry(
-                self._adjust_factor_fetcher.fetch_factors,
-                stock_code
-            )
+            # 迭代10：美股使用 TuShare adjust fetcher
+            if stock_code.startswith("US.") and self._tushare_adjust_fetcher is not None:
+                factors = self._tushare_adjust_fetcher.fetch_factors(stock_code)
+            else:
+                factors = self._general_rate_limiter.execute_with_retry(
+                    self._adjust_factor_fetcher.fetch_factors,
+                    stock_code
+                )
             if factors:
                 self._adjust_factor_repo.insert_new_only(factors)
                 logger.debug(
@@ -296,6 +345,33 @@ class SyncEngine:
         except Exception as e:
             logger.warning(
                 "Failed to refresh adjust factors for %s: %s", stock_code, e
+            )
+
+    def _refresh_adjust_factors_from_tushare(
+        self, stock_code: str, start_date: str, end_date: str
+    ) -> None:
+        """
+        迭代10：从 TuShare 获取复权因子（独立 API 调用）。
+        
+        TuShare 提供 us_adjfactor 接口直接获取复权因子，
+        不像 yfinance 需要从 Adj Close 推算。
+        """
+        if self._tushare_adjust_fetcher is None:
+            return
+
+        logger.debug("Fetching adjust factors from TuShare for %s", stock_code)
+        try:
+            factors = self._tushare_adjust_fetcher.fetch_factors(stock_code)
+            if factors:
+                self._adjust_factor_repo.insert_new_only(factors)
+                logger.debug(
+                    "Upserted %d adjust factors for %s (from TuShare)",
+                    len(factors), stock_code,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch adjust factors from TuShare for %s: %s",
+                stock_code, e,
             )
 
     def _calc_rollback_start(self, period: str, start_date: str, market: str) -> str:
@@ -523,6 +599,9 @@ class SyncEngine:
           - latest_date 为 None 时，全部使用 insert_many（兼容旧调用路径）。
         """
         stock_code = stock.stock_code
+
+        # 迭代10：美股使用 TuShare（仅支持日K）
+        # TuShare 不像 yfinance 需要从 Adj Close 推算复权因子，直接拉K线即可
         bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
 
         rows_fetched = len(bars)
@@ -586,11 +665,18 @@ class SyncEngine:
         self, stock_code: str, period: str, start_date: str, end_date: str
     ) -> list:
         """
-        分页拉取K线。
-        RateLimiter.acquire() 已内置在 KlineFetcher.fetch() 的每页循环中，
-        此处直接调用，无需外层 execute_with_retry 包装。
+        拉取K线（分页/单次，取决于数据源）。
+        
+        迭代10：按市场码路由 Fetcher（US → TuShare，其他 → 富途）。
         """
-        return self._kline_fetcher.fetch(stock_code, period, start_date, end_date)
+        fetcher = self._get_kline_fetcher(stock_code)
+        return fetcher.fetch(stock_code, period, start_date, end_date)
+
+    def _get_kline_fetcher(self, stock_code: str):
+        """按市场码返回对应的 K线 Fetcher。"""
+        if stock_code.startswith("US.") and self._tushare_kline_fetcher is not None:
+            return self._tushare_kline_fetcher
+        return self._kline_fetcher
 
     def repair_one(
         self,
