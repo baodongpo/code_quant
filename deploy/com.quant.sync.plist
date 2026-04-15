@@ -23,8 +23,10 @@
     查看状态：        launchctl list  | grep quant
 
   同步时间说明（StartCalendarInterval）：
-    当前配置：周一至周五 16:30（A股15:00收盘、港股16:00收盘后均已结束）
-    如需同步美股，可额外添加次日 05:00 时间段（见注释示例）
+    A股+港股：周一至周五 16:30（A股15:00收盘、港股16:00收盘后均已结束）
+    美股：周二至周六 07:00（美股收盘后固定安全时间，无需区分冬夏令时）
+      - 夏令时（3-11月）：收盘时间 04:00+1 北京，07:00 有 3h 缓冲
+      - 冬令时（11-3月）：收盘时间 05:00+1 北京，07:00 有 2h 缓冲
 
   注意：此文件使用 YOUR_USER 占位符，实际部署时替换为真实用户名，
         或通过 sed 替换：
@@ -67,7 +69,10 @@
       ─────────────────────────────────
       A股+港股收盘后 16:30（周一至周五）
       A股收盘：15:00，港股收盘：16:00，16:30 确保两个市场均已结束
-      Weekday: 1=周一，2=周二，...，5=周五，0/7=周日
+      美股收盘后 07:00（周二至周六）
+      美股收盘：东部时间 16:00 = 北京时间次日 04:00(夏令)/05:00(冬令)，
+      07:00 为固定安全时间，无需区分冬夏令时
+      Weekday: 1=周一，2=周二，...，5=周五，6=周六，0/7=周日
 
       如需多时段同步（A股 + 港股 + 美股），可使用数组：
       <key>StartCalendarInterval</key>
@@ -112,14 +117,33 @@
             <key>Minute</key><integer>30</integer>
             <key>Weekday</key><integer>5</integer>
         </dict>
-        <!-- 美股收盘后（东部时间 16:00 = 北京时间次日 05:00） -->
-        <!-- 如需同步美股，取消注释以下块：
+        <!-- 美股收盘后 07:00（周二至周六，美股周一至周五对应北京时间周二至周六） -->
+        <!-- 夏令时（3-11月）收盘 04:00+1 北京，冬令时（11-3月）收盘 05:00+1 北京，07:00 为固定安全时间 -->
         <dict>
-            <key>Hour</key><integer>5</integer>
+            <key>Hour</key><integer>7</integer>
             <key>Minute</key><integer>0</integer>
             <key>Weekday</key><integer>2</integer>
         </dict>
-        -->
+        <dict>
+            <key>Hour</key><integer>7</integer>
+            <key>Minute</key><integer>0</integer>
+            <key>Weekday</key><integer>3</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>7</integer>
+            <key>Minute</key><integer>0</integer>
+            <key>Weekday</key><integer>4</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>7</integer>
+            <key>Minute</key><integer>0</integer>
+            <key>Weekday</key><integer>5</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>7</integer>
+            <key>Minute</key><integer>0</integer>
+            <key>Weekday</key><integer>6</integer>
+        </dict>
     </array>
 
     <!-- 日志输出（修改为实际路径） -->

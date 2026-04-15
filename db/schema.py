@@ -197,6 +197,13 @@ def init_db(db_path: str) -> None:
                 )
             except sqlite3.OperationalError:
                 pass  # 并发 init_db 时已由其他进程添加，忽略
+        if "factor_source" not in existing:
+            try:
+                conn.execute(
+                    "ALTER TABLE adjust_factors ADD COLUMN factor_source TEXT NOT NULL DEFAULT 'futu'"
+                )
+            except sqlite3.OperationalError:
+                pass  # 并发 init_db 时已由其他进程添加，忽略
 
         # 迁移：为旧版 kline_data 表补充 pb_ratio / ps_ratio 列（幂等）
         kline_cols = {

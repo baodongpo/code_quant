@@ -86,8 +86,8 @@ export default function StockAnalysis() {
 
   const timerRef = useRef(null)
 
-  // 跨图联动（主图十字线 → 副图同步；collapsed 变化时重绑定新 ECharts 实例）
-  useChartSync(mainRef, [macdRef, rsiRef, kdjRef, vpaRef], collapsed)
+  // 跨图联动（主图十字线 → 副图同步；collapsed/code 变化时重绑定新 ECharts 实例）
+  useChartSync(mainRef, [macdRef, rsiRef, kdjRef, vpaRef], collapsed, code)
 
   // 加载股票列表
   useEffect(() => {
@@ -317,7 +317,7 @@ export default function StockAnalysis() {
         </span>
 
         <StockSelector stocks={stocks} value={code} onChange={setCode} signals={watchlistSignals} />
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={setPeriod} stockCode={code} />
         <TimeRangeSelector
           start={startDate} end={endDate}
           onChange={(s, e) => { setStartDate(s); setEndDate(e) }}
@@ -413,6 +413,7 @@ export default function StockAnalysis() {
               bars={bars}
               indicators={indicators}
               showMarkers={showMarkers}
+              stockCode={code}
             />
             <ChartSidebar
               title="📊 K线 · 均线 · 布林带"
@@ -589,7 +590,7 @@ export default function StockAnalysis() {
           {collapsed.VPA ? (
             <VPADefenderPanel
               dates={dates} closes={closes} vpaDefender={indicators.VPA_DEFENDER} signal={signals.VPA_DEFENDER}
-              collapsed={true} onToggle={() => togglePanel('VPA')}
+              collapsed={true} onToggle={() => togglePanel('VPA')} stockCode={code}
             />
           ) : (
             <div style={{
@@ -603,7 +604,7 @@ export default function StockAnalysis() {
                 key={`vpa-panel-${code}`}
                 ref={vpaRef}
                 dates={dates} closes={closes} vpaDefender={indicators.VPA_DEFENDER} signal={signals.VPA_DEFENDER}
-                collapsed={false} onToggle={() => togglePanel('VPA')}
+                collapsed={false} onToggle={() => togglePanel('VPA')} stockCode={code}
               />
               <ChartSidebar
                 key={`vpa-sidebar-${code}`}
@@ -638,7 +639,9 @@ export default function StockAnalysis() {
             fontSize:   14,
           }}>
             {code
-              ? '暂无足够数据（至少需要60个交易日，请确认 OpenD 已运行且数据已同步）'
+              ? (code.startsWith('US.')
+                ? '暂无足够数据（至少需要60个交易日，请确认 TuShare 数据已同步）'
+                : '暂无足够数据（至少需要60个交易日，请确认数据已同步）')
               : '请选择股票'}
           </div>
         )

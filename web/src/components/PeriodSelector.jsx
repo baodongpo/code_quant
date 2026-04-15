@@ -1,5 +1,7 @@
 /**
  * components/PeriodSelector.jsx — 周期切换（1D/1W/1M）
+ *
+ * 美股（US.*）仅支持日K，周K和月K自动隐藏
  */
 import React from 'react'
 
@@ -9,10 +11,14 @@ const PERIODS = [
   { value: '1M', label: '月K' },
 ]
 
-export default function PeriodSelector({ value, onChange }) {
+export default function PeriodSelector({ value, onChange, stockCode }) {
+  // 美股仅支持日K，过滤掉周K和月K
+  const isUS = stockCode?.startsWith('US.')
+  const periods = isUS ? PERIODS.filter(p => p.value === '1D') : PERIODS
+
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      {PERIODS.map(p => (
+      {periods.map(p => (
         <button
           key={p.value}
           onClick={() => onChange(p.value)}

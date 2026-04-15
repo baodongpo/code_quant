@@ -21,6 +21,7 @@ from config.settings import (
     RECONNECT_BASE_INTERVAL, RECONNECT_MAX_RETRIES,
     WATCHLIST_PATH,
     YFINANCE_PROXY, YFINANCE_REQUEST_INTERVAL, YFINANCE_MAX_RETRIES,
+    TUSHARE_TOKEN, TUSHARE_REQUEST_INTERVAL, US_STOCK_SOURCE,
 )
 from core.adjustment_service import AdjustmentService
 from core.gap_detector import GapDetector
@@ -99,13 +100,13 @@ def setup_logging() -> None:
 
 def build_dependencies(
     futu_client: FutuClient = None,
-    enable_yfinance: bool = False,
+    enable_tushare: bool = False,
 ) -> dict:
     """组装所有依赖对象（依赖注入）。
 
     Args:
         futu_client: 富途 OpenD 客户端，为 None 时富途功能不可用（美股独立运行）
-        enable_yfinance: 是否初始化 yfinance 美股数据源
+        enable_tushare: 是否初始化 TuShare 美股数据源
     """
     # Repositories
     stock_repo = StockRepository(DB_PATH)
@@ -125,31 +126,28 @@ def build_dependencies(
     calendar_fetcher = CalendarFetcher(futu_client) if futu_client else None
     adjust_factor_fetcher = AdjustFactorFetcher(futu_client) if futu_client else None
 
-    # yfinance 美股数据源（迭代9）
+    # TuShare 美股数据源（迭代10）
+    tushare_kline_fetcher = None
+    tushare_adjust_fetcher = None
+    tushare_calendar_fetcher = None
+    if enable_tushare and TUSHARE_TOKEN:
+        from tushare_wrap import TuShareClient, TuShareKlineFetcher, TuShareAdjustFetcher, TuShareCalendarFetcher
+
+        ts_client = TuShareClient(token=TUSHARE_TOKEN)
+        tushare_kline_fetcher = TuShareKlineFetcher(ts_client)
+        tushare_adjust_fetcher = TuShareAdjustFetcher(ts_client)
+        tushare_calendar_fetcher = TuShareCalendarFetcher()
+        logger = logging.getLogger("main")
+        logger.info(
+            "TuShare data source enabled (request_interval=%.1fs)",
+            TUSHARE_REQUEST_INTERVAL,
+        )
+
+    # yfinance 美股数据源（迭代9，已禁用）
+    # 保留代码但不初始化，所有美股请求走 TuShare
     yfinance_kline_fetcher = None
     yfinance_adjust_fetcher = None
     yfinance_calendar_fetcher = None
-    if enable_yfinance:
-        from yfinance_wrap.client import YFinanceClient
-        from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
-        from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
-        from yfinance_wrap.calendar_fetcher import YFinanceCalendarFetcher
-
-        yf_client = YFinanceClient(
-            proxy=YFINANCE_PROXY or None,
-            request_interval=YFINANCE_REQUEST_INTERVAL,
-            max_retries=YFINANCE_MAX_RETRIES,
-        )
-        yfinance_kline_fetcher = YFinanceKlineFetcher(yf_client)
-        yfinance_adjust_fetcher = YFinanceAdjustFetcher(
-            yf_client, kline_fetcher=yfinance_kline_fetcher,
-        )
-        yfinance_calendar_fetcher = YFinanceCalendarFetcher()
-        logger = logging.getLogger("main")
-        logger.info(
-            "yfinance data source enabled (proxy=%s, request_interval=%.1fs)",
-            YFINANCE_PROXY or "none", YFINANCE_REQUEST_INTERVAL,
-        )
 
     # Core services
     validator = KlineValidator()
@@ -178,6 +176,9 @@ def build_dependencies(
         yfinance_kline_fetcher=yfinance_kline_fetcher,
         yfinance_adjust_fetcher=yfinance_adjust_fetcher,
         yfinance_calendar_fetcher=yfinance_calendar_fetcher,
+        tushare_kline_fetcher=tushare_kline_fetcher,
+        tushare_adjust_fetcher=tushare_adjust_fetcher,
+        tushare_calendar_fetcher=tushare_calendar_fetcher,
     )
 
     return {
@@ -230,14 +231,14 @@ def _has_us_stocks() -> bool:
 def _run_sync_once(
     futu_client: FutuClient,
     logger: logging.Logger,
-    enable_yfinance: bool = False,
+    enable_tushare: bool = False,
 ) -> bool:
     """
     执行一次完整的同步流程（连接已建立）。
     返回 True 表示正常完成，返回 False 表示检测到断线需要重连。
     抛出 KeyboardInterrupt / RuntimeError 等非连接异常由调用方处理。
     """
-    deps = build_dependencies(futu_client, enable_yfinance=enable_yfinance)
+    deps = build_dependencies(futu_client, enable_tushare=enable_tushare)
     watchlist_manager: WatchlistManager = deps["watchlist_manager"]
     subscription_manager = deps["subscription_manager"]
     sync_engine: SyncEngine = deps["sync_engine"]
@@ -312,7 +313,7 @@ def cmd_sync(_args) -> None:
     setup_logging()
     logger = logging.getLogger("main")
 
-    # 检测是否需要 yfinance（watchlist 中是否有美股）
+    # 检测是否需要 TuShare（watchlist 中是否有美股）
     has_us = _has_us_stocks()
 
     logger.info("=" * 60)
@@ -320,7 +321,7 @@ def cmd_sync(_args) -> None:
     logger.info("DB: %s", DB_PATH)
     logger.info("OpenD: %s:%d", OPEND_HOST, OPEND_PORT)
     if has_us:
-        logger.info("yfinance: enabled (US stocks detected in watchlist)")
+        logger.info("TuShare: enabled (US stocks detected in watchlist)")
     logger.info("=" * 60)
 
     # 注册 SIGTERM 处理器（systemd stop / kill 信号）
@@ -343,8 +344,8 @@ def cmd_sync(_args) -> None:
         if has_us:
             # 有美股时，OpenD 不可用仍可继续（仅同步美股）
             logger.warning("Failed to connect to OpenD: %s", e)
-            logger.warning("Continuing with yfinance-only mode (US stocks only)")
-            write_health("degraded", f"OpenD unavailable, yfinance-only mode: {e}")
+            logger.warning("Continuing with TuShare-only mode (US stocks only)")
+            write_health("degraded", f"OpenD unavailable, TuShare-only mode: {e}")
             futu_client = None
         else:
             # 无美股时，OpenD 不可用则退出
@@ -356,7 +357,7 @@ def cmd_sync(_args) -> None:
     try:
         while not _shutdown_requested:
             try:
-                _run_sync_once(futu_client, logger, enable_yfinance=has_us)
+                _run_sync_once(futu_client, logger, enable_tushare=has_us)
                 # 正常完成后退出循环（批处理模式：跑完即退）
                 break
 
@@ -848,7 +849,7 @@ def cmd_repair(args) -> None:
     """
     K线数据强制修复子命令。
 
-    迭代9：美股走 yfinance，A股/港股走富途 OpenD。
+    迭代10：美股走 TuShare，A股/港股走富途 OpenD。
     如果 --stock 指定美股，则无需 OpenD 连接。
     """
     # 参数验证：--date 格式
@@ -888,7 +889,7 @@ def cmd_repair(args) -> None:
             sys.exit(1)
 
     try:
-        deps = build_dependencies(futu_client, enable_yfinance=has_us or is_us_only)
+        deps = build_dependencies(futu_client, enable_tushare=has_us or is_us_only)
         stock_repo = deps["stock_repo"]
         sync_engine: SyncEngine = deps["sync_engine"]
 
@@ -1091,7 +1092,7 @@ def main() -> None:
     # 子命令：repair
     sub_repair = subparsers.add_parser(
         "repair",
-        help="强制 upsert 覆盖指定日期的 K 线数据（A股/港股需 OpenD，美股走 yfinance）"
+        help="强制 upsert 覆盖指定日期的 K 线数据（A股/港股需 OpenD，美股走 TuShare）"
     )
     sub_repair.add_argument(
         "--date", dest="date", required=True, metavar="YYYY-MM-DD",

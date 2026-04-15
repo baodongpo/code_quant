@@ -7,6 +7,9 @@ python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 
-# 迭代9：美股数据源依赖
+# 迭代9：美股数据源依赖（yfinance 已禁用）
 yfinance>=0.2.36
 pandas-market-calendars>=4.3.0
+
+# 迭代10：TuShare 美股数据源
+tushare>=1.4.0
