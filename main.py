@@ -20,8 +20,6 @@ from config.settings import (
     LOG_DIR, OPEND_HOST, OPEND_PORT,
     RECONNECT_BASE_INTERVAL, RECONNECT_MAX_RETRIES,
     WATCHLIST_PATH,
-    YFINANCE_PROXY, YFINANCE_REQUEST_INTERVAL, YFINANCE_MAX_RETRIES,
-    TUSHARE_TOKEN, TUSHARE_REQUEST_INTERVAL,
     AKSHARE_REQUEST_INTERVAL, US_STOCK_SOURCE,
 )
 from core.adjustment_service import AdjustmentService
@@ -101,13 +99,13 @@ def setup_logging() -> None:
 
 def build_dependencies(
     futu_client: FutuClient = None,
-    enable_akshare: bool = False,
+    use_akshare_for_us: bool = False,
 ) -> dict:
     """组装所有依赖对象（依赖注入）。
 
     Args:
-        futu_client: 富途 OpenD 客户端，为 None 时富途功能不可用（美股独立运行）
-        enable_akshare: 是否初始化 AkShare 美股数据源
+        futu_client: 富途 OpenD 客户端（A股/港股/美股默认数据源）
+        use_akshare_for_us: 仅当 US_STOCK_SOURCE=akshare 时为 True，降级使用 AkShare 获取美股日K
     """
     # Repositories
     stock_repo = StockRepository(DB_PATH)
@@ -127,33 +125,18 @@ def build_dependencies(
     calendar_fetcher = CalendarFetcher(futu_client) if futu_client else None
     adjust_factor_fetcher = AdjustFactorFetcher(futu_client) if futu_client else None
 
-    # AkShare 美股数据源（迭代11）
+    # AkShare 美股数据源（降级模式：仅当 use_akshare_for_us=True 时初始化）
     akshare_kline_fetcher = None
-    tushare_calendar_fetcher = None  # 美股交易日历（复用 TuShareCalendarFetcher，底层 pandas-market-calendars）
-    if enable_akshare:
+    if use_akshare_for_us:
         from akshare_wrap import AkShareClient, AkShareKlineFetcher
-        from tushare_wrap import TuShareCalendarFetcher
 
         ak_client = AkShareClient(request_interval=AKSHARE_REQUEST_INTERVAL)
         akshare_kline_fetcher = AkShareKlineFetcher(ak_client)
-        # 美股交易日历使用 TuShareCalendarFetcher（底层 pandas-market-calendars NYSE，无需 Token）
-        tushare_calendar_fetcher = TuShareCalendarFetcher()
         logger = logging.getLogger("main")
         logger.info(
             "AkShare data source enabled (request_interval=%.1fs)",
             AKSHARE_REQUEST_INTERVAL,
         )
-
-    # TuShare 美股数据源（迭代10，已禁用）
-    # 保留代码但不初始化
-    tushare_kline_fetcher = None
-    tushare_adjust_fetcher = None
-
-    # yfinance 美股数据源（迭代9，已禁用）
-    # 保留代码但不初始化
-    yfinance_kline_fetcher = None
-    yfinance_adjust_fetcher = None
-    yfinance_calendar_fetcher = None
 
     # Core services
     validator = KlineValidator()
@@ -179,12 +162,6 @@ def build_dependencies(
         gap_detector=gap_detector,
         validator=validator,
         general_rate_limiter=general_rate_limiter,
-        yfinance_kline_fetcher=yfinance_kline_fetcher,
-        yfinance_adjust_fetcher=yfinance_adjust_fetcher,
-        yfinance_calendar_fetcher=yfinance_calendar_fetcher,
-        tushare_kline_fetcher=tushare_kline_fetcher,
-        tushare_adjust_fetcher=tushare_adjust_fetcher,
-        tushare_calendar_fetcher=tushare_calendar_fetcher,
         akshare_kline_fetcher=akshare_kline_fetcher,
     )
 
@@ -218,34 +195,17 @@ def write_health(status: str, detail: str = "") -> None:
         logging.getLogger("main").warning("Failed to write health file: %s", e)
 
 
-def _has_us_stocks() -> bool:
-    """检查 watchlist 中是否存在美股。"""
-    if not os.path.exists(WATCHLIST_PATH):
-        return False
-    try:
-        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        for market_node in data.get("markets", []):
-            if market_node.get("market") == "US" and market_node.get("enabled", True):
-                for item in market_node.get("stocks", []):
-                    if item.get("is_active", True):
-                        return True
-    except (json.JSONDecodeError, OSError):
-        pass
-    return False
-
-
 def _run_sync_once(
     futu_client: FutuClient,
     logger: logging.Logger,
-    enable_akshare: bool = False,
+    use_akshare_for_us: bool = False,
 ) -> bool:
     """
     执行一次完整的同步流程（连接已建立）。
     返回 True 表示正常完成，返回 False 表示检测到断线需要重连。
     抛出 KeyboardInterrupt / RuntimeError 等非连接异常由调用方处理。
     """
-    deps = build_dependencies(futu_client, enable_akshare=enable_akshare)
+    deps = build_dependencies(futu_client, use_akshare_for_us=use_akshare_for_us)
     watchlist_manager: WatchlistManager = deps["watchlist_manager"]
     subscription_manager = deps["subscription_manager"]
     sync_engine: SyncEngine = deps["sync_engine"]
@@ -270,12 +230,11 @@ def _run_sync_once(
         )
 
     # 注册实时推送 handler（必须在 sync_subscriptions 之前，确保订阅建立时 handler 已就绪）
-    # 迭代9：subscription_manager 可能为 None（无富途连接时），美股无实时推送
     if subscription_manager:
         subscription_manager.setup_push_handler()
 
     # 同步订阅状态：活跃股票订阅，非活跃取消（Module B）
-    # 迭代9：仅富途股票参与订阅，美股跳过
+    # 美股不支持实时推送，仅同步 A股/港股
     if subscription_manager:
         futu_stocks = [s for s in active_stocks if not s.stock_code.startswith("US.")]
         logger.info("Syncing subscriptions for %d futu stocks...", len(futu_stocks))
@@ -313,22 +272,23 @@ def _run_sync_once(
 def cmd_sync(_args) -> None:
     """执行历史数据同步（默认子命令），含 OpenD 断线指数退避重连。
 
-    迭代9：OpenD 连接变为可选 — 如果 watchlist 中仅有美股，
-    则无需 OpenD 即可运行。如果同时有 A股/港股和美股，
-    OpenD 失败时美股部分仍可独立完成。
+    A股/港股/美股均通过富途 OpenD 获取数据。
+    仅当 US_STOCK_SOURCE=akshare 时美股降级使用 AkShare（日K）。
+    OpenD 不可用时直接退出，不做自动降级。
     """
     setup_logging()
     logger = logging.getLogger("main")
 
-    # 检测是否需要 AkShare（watchlist 中是否有美股）
-    has_us = _has_us_stocks()
+    # 检测是否需要 AkShare（仅当 US_STOCK_SOURCE == "akshare" 时启用）
+    use_akshare_for_us = US_STOCK_SOURCE == "akshare"
 
     logger.info("=" * 60)
     logger.info("AI Quant Data Subsystem starting")
     logger.info("DB: %s", DB_PATH)
     logger.info("OpenD: %s:%d", OPEND_HOST, OPEND_PORT)
-    if has_us:
-        logger.info("AkShare: enabled (US stocks detected in watchlist)")
+    logger.info("US stock source: %s", US_STOCK_SOURCE)
+    if use_akshare_for_us:
+        logger.info("AkShare: enabled for US stocks (source=akshare)")
     logger.info("=" * 60)
 
     # 注册 SIGTERM 处理器（systemd stop / kill 信号）
@@ -339,32 +299,22 @@ def cmd_sync(_args) -> None:
     init_db(DB_PATH)
     logger.info("Database initialized at %s", DB_PATH)
 
-    # 尝试连接 OpenD（A股/港股需要，美股不需要）
+    # 连接 OpenD（A股/港股/美股均通过富途；akshare 模式时美股不需要 OpenD 但仍需连接用于其他股票）
     futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
-    futu_connected = False
     retry_count = 0
 
     try:
         futu_client.connect()
-        futu_connected = True
     except Exception as e:
-        if has_us:
-            # 有美股时，OpenD 不可用仍可继续（仅同步美股）
-            logger.warning("Failed to connect to OpenD: %s", e)
-            logger.warning("Continuing with AkShare-only mode (US stocks only)")
-            write_health("degraded", f"OpenD unavailable, AkShare-only mode: {e}")
-            futu_client = None
-        else:
-            # 无美股时，OpenD 不可用则退出
-            logger.error("Failed to connect to OpenD: %s", e)
-            logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
-            write_health("error", f"OpenD connection failed: {e}")
-            sys.exit(1)
+        logger.error("Failed to connect to OpenD: %s", e)
+        logger.error("Please ensure OpenD is running at %s:%d", OPEND_HOST, OPEND_PORT)
+        write_health("error", f"OpenD connection failed: {e}")
+        sys.exit(1)
 
     try:
         while not _shutdown_requested:
             try:
-                _run_sync_once(futu_client, logger, enable_akshare=has_us)
+                _run_sync_once(futu_client, logger, use_akshare_for_us=use_akshare_for_us)
                 # 正常完成后退出循环（批处理模式：跑完即退）
                 break
 
@@ -466,7 +416,6 @@ def cmd_migrate(_args) -> None:
     logger.info("DB schema migration complete")
 
     # ── 2. watchlist 股票 upsert（含 name 字段） ─────────────────────
-    from config.settings import WATCHLIST_PATH
     from db.repositories.stock_repo import StockRepository
 
     if not os.path.exists(WATCHLIST_PATH):
@@ -856,8 +805,9 @@ def cmd_repair(args) -> None:
     """
     K线数据强制修复子命令。
 
-    迭代10：美股走 TuShare，A股/港股走富途 OpenD。
-    如果 --stock 指定美股，则无需 OpenD 连接。
+    默认通过富途 OpenD 获取数据（A股/港股/美股）。
+    仅当 US_STOCK_SOURCE=akshare 时美股降级使用 AkShare。
+    如果 --stock 指定美股且 akshare 模式，则无需 OpenD 连接。
     """
     # 参数验证：--date 格式
     try:
@@ -880,13 +830,13 @@ def cmd_repair(args) -> None:
     # 初始化数据库
     init_db(DB_PATH)
 
-    # 判断是否需要富途连接（A股/港股需要，美股不需要）
+    # 仅当 US_STOCK_SOURCE=akshare 时使用 AkShare 作为美股数据源
     is_us_only = args.stock and args.stock.startswith("US.")
-    has_us = _has_us_stocks()
+    use_akshare_for_us = US_STOCK_SOURCE == "akshare"
 
-    # 连接富途 OpenD（仅 A股/港股需要）
+    # 连接富途 OpenD（所有股票默认走富途；仅在 akshare 模式下且目标全为美股时可跳过）
     futu_client = None
-    if not is_us_only:
+    if not (is_us_only and use_akshare_for_us):
         futu_client = FutuClient(OPEND_HOST, OPEND_PORT)
         try:
             futu_client.connect()
@@ -896,7 +846,7 @@ def cmd_repair(args) -> None:
             sys.exit(1)
 
     try:
-        deps = build_dependencies(futu_client, enable_akshare=has_us or is_us_only)
+        deps = build_dependencies(futu_client, use_akshare_for_us=use_akshare_for_us)
         stock_repo = deps["stock_repo"]
         sync_engine: SyncEngine = deps["sync_engine"]
 
@@ -1099,7 +1049,7 @@ def main() -> None:
     # 子命令：repair
     sub_repair = subparsers.add_parser(
         "repair",
-        help="强制 upsert 覆盖指定日期的 K 线数据（A股/港股需 OpenD，美股走 AkShare）"
+        help="强制 upsert 覆盖指定日期的 K 线数据（默认富途，US_STOCK_SOURCE=akshare 时美股降级）"
     )
     sub_repair.add_argument(
         "--date", dest="date", required=True, metavar="YYYY-MM-DD",

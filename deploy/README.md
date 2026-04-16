@@ -95,3 +95,15 @@ python main.py export SH.600519 1D 2024-01-01 2024-12-31 --adj-type raw --fmt cs
 # 查看同步状态
 python main.py stats
 ```
+
+## 美股数据源配置
+
+默认美股数据源为 `futu`（富途），支持日K/周K/月K。
+若 futu 不可用，可在 `.env` 中手动降级到 AkShare（仅支持日K）：
+
+```ini
+# .env
+US_STOCK_SOURCE=akshare   # futu（默认）| akshare（降级，仅日K）
+```
+
+降级后前端将自动隐藏周K/月K选项。

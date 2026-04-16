@@ -73,6 +73,7 @@ export default function StockAnalysis() {
   const [collapsed,  setCollapsed] = useState(loadCollapseState)  // 副图折叠状态
   const [watchlistSignals, setWatchlistSignals] = useState({})  // 各股综合信号
   const [appVersion, setAppVersion] = useState(null)  // 系统版本号（FEAT-version）
+  const [usStockSource, setUsStockSource] = useState(null)  // 美股数据源（FEAT-1：控制周期选项）
   // FEAT-legend-toggle：各副图面板的图例激活状态（seriesName → boolean，false=隐藏）
   // 切换股票时重置为全 active（新股票重新开始）
   const [legendActiveMaps, setLegendActiveMaps] = useState({ MACD: {}, RSI: {}, KDJ: {}, VPA: {} })
@@ -123,6 +124,7 @@ export default function StockAnalysis() {
     fetchHealth()
       .then(data => {
         if (data?.version) setAppVersion(data.version)
+        if (data?.us_stock_source) setUsStockSource(data.us_stock_source)
       })
       .catch(() => {
         // 静默降级：版本号区域不展示，不影响其他功能
@@ -317,7 +319,7 @@ export default function StockAnalysis() {
         </span>
 
         <StockSelector stocks={stocks} value={code} onChange={setCode} signals={watchlistSignals} />
-        <PeriodSelector value={period} onChange={setPeriod} stockCode={code} />
+        <PeriodSelector value={period} onChange={setPeriod} stockCode={code} usStockSource={usStockSource} />
         <TimeRangeSelector
           start={startDate} end={endDate}
           onChange={(s, e) => { setStartDate(s); setEndDate(e) }}

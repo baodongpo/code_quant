@@ -25,11 +25,11 @@ function stockLabel(s) {
   return s.name ? `${s.name} (${s.stock_code})` : s.stock_code
 }
 
-/** 按信号分组，顺序：bullish → bearish → neutral */
-const GROUP_ORDER = [
-  { key: 'bullish', label: '🔴 多头（Bullish）', color: '#ef5350' },
-  { key: 'bearish', label: '🟢 空头（Bearish）', color: '#26a69a' },
-  { key: 'neutral', label: '⚖️ 中性（Neutral）', color: '#e6edf3' },
+/** 按市场分组，顺序：A股 → 港股 → 美股 */
+const MARKET_GROUPS = [
+  { key: 'A',  label: 'A股' },
+  { key: 'HK', label: '港股' },
+  { key: 'US', label: '美股' },
 ]
 
 export default function StockSelector({ stocks, value, onChange, signals }) {
@@ -40,10 +40,10 @@ export default function StockSelector({ stocks, value, onChange, signals }) {
   const selected = stocks.find(s => s.stock_code === value)
   const selectedSignal = selected ? (sigMap[value] || 'neutral') : 'neutral'
 
-  // 按信号分组，signals 为空对象时全部归入 neutral（降级处理）
-  const groups = GROUP_ORDER.map(g => ({
+  // 按市场分组，组内保留信号颜色
+  const groups = MARKET_GROUPS.map(g => ({
     ...g,
-    stocks: stocks.filter(s => (sigMap[s.stock_code] || 'neutral') === g.key),
+    stocks: stocks.filter(s => s.market === g.key),
   })).filter(g => g.stocks.length > 0)
 
   return (
@@ -56,18 +56,21 @@ export default function StockSelector({ stocks, value, onChange, signals }) {
           onChange={e => onChange(e.target.value)}
         >
           {groups.map(g => (
-            <optgroup key={g.key} label={g.label} style={{ color: g.color }}>
-              {g.stocks.map(s => (
-                <option
-                  key={s.stock_code}
-                  value={s.stock_code}
-                  // NOTE: option style.color 在 Safari/Firefox 中不生效，属已知平台限制；
-                  // 已选中项的颜色通过 <select> 自身的 color 属性正常显示（跨浏览器有效）
-                  style={{ color: signalColor(g.key), background: '#1c2128' }}
-                >
-                  {stockLabel(s)}
-                </option>
-              ))}
+            <optgroup key={g.key} label={g.label} style={{ color: '#8b949e' }}>
+              {g.stocks.map(s => {
+                const sig = sigMap[s.stock_code] || 'neutral'
+                return (
+                  <option
+                    key={s.stock_code}
+                    value={s.stock_code}
+                    // NOTE: option style.color 在 Safari/Firefox 中不生效，属已知平台限制；
+                    // 已选中项的颜色通过 <select> 自身的 color 属性正常显示（跨浏览器有效）
+                    style={{ color: signalColor(sig), background: '#1c2128' }}
+                  >
+                    {stockLabel(s)}
+                  </option>
+                )
+              })}
             </optgroup>
           ))}
         </select>

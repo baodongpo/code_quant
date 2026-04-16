@@ -21,6 +21,18 @@ const headStyle = {
   background: '#161b22', color: '#8b949e', fontWeight: 600,
   position: 'sticky', top: 0, zIndex: 1,
 }
+const marketGroupStyle = {
+  padding: '8px 14px', fontSize: 13, fontWeight: 600,
+  background: '#21262d', color: '#8b949e', textAlign: 'left',
+  borderBottom: '1px solid #30363d',
+}
+
+/** 市场分组顺序 */
+const MARKET_GROUPS = [
+  { key: 'A',  label: 'A股' },
+  { key: 'HK', label: '港股' },
+  { key: 'US', label: '美股' },
+]
 
 export default function WatchlistPage() {
   const [summary,    setSummary]    = useState([])
@@ -110,7 +122,18 @@ export default function WatchlistPage() {
                 </td>
               </tr>
             )}
-            {summary.map(item => {
+            {MARKET_GROUPS.map(group => {
+              const items = summary.filter(item => item.market === group.key)
+              if (items.length === 0) return null
+              return (
+                <React.Fragment key={group.key}>
+                  {/* 市场分组标题行 */}
+                  <tr>
+                    <td colSpan={7} style={marketGroupStyle}>
+                      {group.label} ({items.length}只)
+                    </td>
+                  </tr>
+                  {items.map(item => {
               const sig   = item.signals || {}
               const rsi   = sig.RSI || 'neutral'
               const macd  = sig.MACD || 'neutral'
@@ -178,6 +201,9 @@ export default function WatchlistPage() {
                     <SignalTag indicator="composite" signal={comp} />
                   </td>
                 </tr>
+              )
+            })}
+                </React.Fragment>
               )
             })}
           </tbody>

@@ -93,10 +93,10 @@ TUSHARE_REQUEST_INTERVAL = float(os.getenv("TUSHARE_REQUEST_INTERVAL", "1.2"))
 # ============================================================
 AKSHARE_REQUEST_INTERVAL = float(os.getenv("AKSHARE_REQUEST_INTERVAL", "1.0"))  # 请求间隔（秒）
 
-# 美股数据源：akshare（默认）
-US_STOCK_SOURCE = os.getenv("US_STOCK_SOURCE", "akshare")
+# 美股数据源：futu（默认）| akshare（备选，仅支持日K）
+US_STOCK_SOURCE = os.getenv("US_STOCK_SOURCE", "futu")
 
 # ============================================================
 # 系统版本号（硬编码，随代码发布更新，不依赖 .env 配置文件）
 # ============================================================
-APP_VERSION = "v0.9.3"
+APP_VERSION = "v0.9.4"

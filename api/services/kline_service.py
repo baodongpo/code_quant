@@ -147,6 +147,7 @@ def get_watchlist_summary() -> Dict[str, Any]:
         summary.append({
             "stock_code":   stock.stock_code,
             "name":         stock.name,
+            "market":       stock.market,
             "latest_close": latest.close,
             "change_pct":   change_pct,
             "pe_ratio":     latest.pe_ratio,

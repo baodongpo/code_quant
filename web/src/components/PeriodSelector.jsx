@@ -1,7 +1,9 @@
 /**
  * components/PeriodSelector.jsx — 周期切换（1D/1W/1M）
  *
- * 美股（US.*）仅支持日K，周K和月K自动隐藏
+ * 美股周期控制：
+ * - usStockSource === 'futu' 时，美股显示完整 1D/1W/1M
+ * - 其他数据源（akshare 等）时，美股仅显示 1D
  */
 import React from 'react'
 
@@ -11,10 +13,12 @@ const PERIODS = [
   { value: '1M', label: '月K' },
 ]
 
-export default function PeriodSelector({ value, onChange, stockCode }) {
-  // 美股仅支持日K，过滤掉周K和月K
+export default function PeriodSelector({ value, onChange, stockCode, usStockSource }) {
   const isUS = stockCode?.startsWith('US.')
-  const periods = isUS ? PERIODS.filter(p => p.value === '1D') : PERIODS
+  // 仅当美股且数据源不是 futu 时才隐藏周K/月K
+  const periods = (isUS && usStockSource !== 'futu')
+    ? PERIODS.filter(p => p.value === '1D')
+    : PERIODS
 
   return (
     <div style={{ display: 'flex', gap: 4 }}>

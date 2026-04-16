@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股数据源、AkShare 为美股数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
+一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股/美股统一数据源（美股备用降级：AkShare），将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
 
 **核心能力：**
 
@@ -142,12 +142,12 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 | 子命令 | 是否需要 OpenD | 说明 |
 |--------|--------------|------|
-| `sync` | A股/港股需要，美股不需要 | 历史数据采集 + 增量同步（默认命令）|
+| `sync` | 需要（美股降级 akshare 时不需要）| 历史数据采集 + 增量同步（默认命令）|
 | `migrate` | 不需要 | DB 表结构迁移 + watchlist 股票信息同步 |
 | `stats` | 不需要 | 打印同步状态与数据空洞汇总 |
 | `export` | 不需要 | 导出 K 线数据到 CSV / Parquet 文件 |
 | `check-gaps` | 不需要 | 独立空洞检测，结果写入 `data_gaps` 表 |
-| `repair` | A股/港股需要，美股不需要 | 强制 upsert 覆盖指定日期的 K 线数据 |
+| `repair` | 需要（美股降级 akshare 时不需要）| 强制 upsert 覆盖指定日期的 K 线数据 |
 
 ---
 
@@ -160,7 +160,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 **执行逻辑：**
 
-1. 连接富途 OpenD（watchlist 仅有美股时可跳过，进入 yfinance-only 模式）
+1. 连接富途 OpenD（美股降级为 akshare 模式时可跳过富途连接，直接进入 AkShare 模式）
 2. 读取 `watchlist.json`，与数据库做差异检测（新增 / 重激活 / 停用）
 3. 对所有活跃股票执行历史 K 线同步（日/周/月）
 4. 检测并修复数据空洞
@@ -346,7 +346,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
     [--period 1D [1W] [1M]]
 ```
 
-**需要富途 OpenD 连接（美股除外：指定 `--stock US.xxx` 时仅需 yfinance）。**
+**需要富途 OpenD 连接（美股降级 akshare 时不需要，指定 `--stock US.xxx` 时使用 AkShare）。**
 
 **参数说明：**
 
@@ -417,7 +417,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 ```
 顶部控制栏
-  ├── 股票选择：按综合信号分组（偏多 / 偏空 / 中性）
+  ├── 股票选择：按市场分组（A股 / 港股 / 美股）
   ├── 周期选择：1D / 1W / 1M
   └── 时间范围：近3月 / 近6月 / 近1年 / 近3年 / 自定义
 
@@ -455,7 +455,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 
 ### Watchlist 总览页（`/watchlist`）
 
-表格展示所有活跃股票的最新价、涨跌幅、RSI / MACD / KDJ 信号状态和综合信号，点击任意行跳转个股分析页。
+表格展示所有活跃股票的最新价、涨跌幅、RSI / MACD / KDJ 信号状态和综合信号，点击任意行跳转个股分析页。股票按市场分组展示（A股 / 港股 / 美股）。
 
 **综合信号判断逻辑：**
 
@@ -503,7 +503,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 0 7 * * 2-6 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
 ```
 
-> **美股同步时间说明**：美股收盘时间为北京时间次日 04:00（夏令）/ 05:00（冬令）。AkShare 数据源（东方财富）在收盘后 1-2 小时更新数据，07:00 为固定安全时间，兼容两种时令，此时东方财富已完成前一交易日 EOD 数据处理，无需每年手动切换。
+> **美股同步时间说明**：美股收盘时间为北京时间次日 04:00（夏令）/ 05:00（冬令）。富途 OpenD 在收盘后即可获取完整 EOD 数据，07:00 为固定安全时间，兼容两种时令，无需每年手动切换。降级使用 AkShare 时同样适用（东方财富收盘后 1-2 小时更新）。
 
 > **注意**：cron 不继承 shell 环境，务必用虚拟环境的 Python **绝对路径**；macOS 需在「系统设置 → 隐私与安全 → 完全磁盘访问」授权 cron。
 
@@ -622,7 +622,7 @@ bars = adj_service.get_adjusted_klines(
 | `TUSHARE_TOKEN` | 空（已禁用）| TuShare API Token（已禁用，试用限制每天5次）|
 | `TUSHARE_REQUEST_INTERVAL` | `1.2` | TuShare 请求最小间隔（已禁用）|
 | `AKSHARE_REQUEST_INTERVAL` | `1.0` | AkShare 请求最小间隔（保守 30次/分钟）|
-| `US_STOCK_SOURCE` | `akshare` | 美股数据源：akshare（默认，免费无Token）/ tushare（已禁用）/ yfinance（已禁用）|
+| `US_STOCK_SOURCE` | `futu` | 美股数据源：futu（默认，支持日K/周K/月K）/ akshare（降级备选，仅日K，免费无Token）|
 | `APP_VERSION` | `dev` | 系统版本号，前端导航栏展示，与 git tag 保持一致 |
 | `CORS_ORIGINS` | `http://localhost:5173` | 允许的跨域来源（开发模式）|
 | `RATE_LIMIT_MIN_INTERVAL` | `0.5` | 请求最小间隔（秒）|
@@ -733,3 +733,4 @@ code_quant/
 | 迭代9 | ✅ 已完成 | yfinance 美股数据源接入、多数据源路由架构、定时同步配置统一 |
 | 迭代10 | ✅ 已完成 | TuShare 美股数据源替代 yfinance、复权因子近似计算、前端周K/月K屏蔽 |
 | 迭代11 | ✅ 已完成 | AkShare 美股数据源替代 TuShare（免费无Token，数据源：东方财富）|
+| 迭代12 | ✅ 已完成（v0.9.4）| futu 统一美股数据源（日K/周K/月K），AkShare 降级备选；UI 按市场分组（首页下拉 + Watchlist）|

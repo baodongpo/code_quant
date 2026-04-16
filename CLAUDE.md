@@ -207,12 +207,17 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] FEAT-adj-approx：复权因子近似计算（从 close/pre_close 计算，120积分试用可用）
   - [x] FEAT-us-period-filter：前端屏蔽美股周K/月K选项（TuShare 仅支持日K）
   - [x] FEAT-rate-limit：TuShare 限频适配（50次/分钟、8000次/天）
-- [ ] 迭代11（进行中 2026-04-15，tag v0.9.3）：
+- [x] 迭代11（已完成 2026-04-15，tag v0.9.3）：
   - [x] FEAT-akshare：AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
   - [x] FEAT-akshare-rate-limit：AkShare 限频适配（保守 30次/分钟 + 随机抖动，避免反爬）
   - [x] FEAT-qfq：AkShare 返回前复权价格（adjust='qfq'），复权因子记录为 baseline 1.0
-  - [ ] FEAT-calendar：复用 TuShareCalendarFetcher（pandas-market-calendars NYSE）
-  - [ ] TEST：QA 测试验证
+  - [x] FEAT-calendar：复用 TuShareCalendarFetcher（pandas-market-calendars NYSE）
+- [x] 迭代12（已完成 2026-04-16，tag v0.9.4）：
+  - [x] FEAT-futu-us：futu 作为默认美股数据源（日K/周K/月K 全支持），替代 AkShare（仅日K）
+  - [x] FEAT-us-period-unlock：前端 PeriodSelector 基于后端 `us_stock_source` 配置动态展示周K/月K（futu 时全显示，akshare 降级时仅日K）
+  - [x] FEAT-akshare-fallback：`US_STOCK_SOURCE=akshare` 手动降级路径保留，自动屏蔽周K/月K
+  - [x] FEAT-market-group-selector：首页股票下拉按市场分组（A股/港股/美股），组内保留信号颜色
+  - [x] FEAT-market-group-watchlist：Watchlist 总览页按市场分组展示，每组显示标题行
 
 ---
 
