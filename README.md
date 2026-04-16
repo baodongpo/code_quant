@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股数据源、TuShare 为美股数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
+一套面向量化策略研究的**本地数据服务 + 可视化辅助决策工具**，以富途 OpenD 为 A股/港股数据源、AkShare 为美股数据源，将 A股、港股、美股的历史与实时 K 线数据落库到本地 SQLite，并提供动态前复权、技术指标计算和浏览器可视化能力。
 
 **核心能力：**
 
@@ -503,7 +503,7 @@ WEB_MODE=production ./env_quant/bin/uvicorn api.main:app --host 0.0.0.0 --port 8
 0 7 * * 2-6 cd /path/to/code_quant && ./env_quant/bin/python main.py >> logs/cron.log 2>&1
 ```
 
-> **美股同步时间说明**：美股收盘时间为北京时间次日 04:00（夏令）/ 05:00（冬令），盘后交易持续至 08:00/09:00。07:00 为固定安全时间，兼容两种时令，Yahoo Finance 此时已处理完前一交易日 EOD 数据，无需每年手动切换。
+> **美股同步时间说明**：美股收盘时间为北京时间次日 04:00（夏令）/ 05:00（冬令）。AkShare 数据源（东方财富）在收盘后 1-2 小时更新数据，07:00 为固定安全时间，兼容两种时令，此时东方财富已完成前一交易日 EOD 数据处理，无需每年手动切换。
 
 > **注意**：cron 不继承 shell 环境，务必用虚拟环境的 Python **绝对路径**；macOS 需在「系统设置 → 隐私与安全 → 完全磁盘访问」授权 cron。
 
@@ -619,9 +619,10 @@ bars = adj_service.get_adjusted_klines(
 | `YFINANCE_PROXY` | 空（已禁用）| yfinance HTTP 代理地址（已禁用，保留配置）|
 | `YFINANCE_REQUEST_INTERVAL` | `0.5` | yfinance 请求最小间隔（已禁用）|
 | `YFINANCE_MAX_RETRIES` | `3` | yfinance 请求最大重试次数（已禁用）|
-| `TUSHARE_TOKEN` | 空 | TuShare API Token（注册即获120积分试用）|
-| `TUSHARE_REQUEST_INTERVAL` | `1.2` | TuShare 请求最小间隔（50次/分钟）|
-| `US_STOCK_SOURCE` | `tushare` | 美股数据源：tushare（默认）/ yfinance（已禁用）|
+| `TUSHARE_TOKEN` | 空（已禁用）| TuShare API Token（已禁用，试用限制每天5次）|
+| `TUSHARE_REQUEST_INTERVAL` | `1.2` | TuShare 请求最小间隔（已禁用）|
+| `AKSHARE_REQUEST_INTERVAL` | `1.0` | AkShare 请求最小间隔（保守 30次/分钟）|
+| `US_STOCK_SOURCE` | `akshare` | 美股数据源：akshare（默认，免费无Token）/ tushare（已禁用）/ yfinance（已禁用）|
 | `APP_VERSION` | `dev` | 系统版本号，前端导航栏展示，与 git tag 保持一致 |
 | `CORS_ORIGINS` | `http://localhost:5173` | 允许的跨域来源（开发模式）|
 | `RATE_LIMIT_MIN_INTERVAL` | `0.5` | 请求最小间隔（秒）|
@@ -664,7 +665,8 @@ code_quant/
 │   └── repositories/        # 7个 Repository（全部只读供 Web 层调用）
 ├── futu_wrap/               # 富途 SDK 封装（A股/港股数据源）
 ├── yfinance_wrap/           # yfinance 封装（已禁用，保留代码）
-├── tushare_wrap/            # TuShare 封装（美股数据源）
+├── tushare_wrap/            # TuShare 封装（已禁用，保留代码）
+├── akshare_wrap/            # AkShare 封装（美股数据源，免费无Token）
 ├── models/                  # 数据模型（Stock / KlineBar / AdjustFactor）
 ├── config/settings.py       # 配置（从 .env 读取）
 ├── export/exporter.py       # 数据导出（CSV / Parquet）
@@ -730,3 +732,4 @@ code_quant/
 | 迭代8.7-patch | ✅ 已完成 | check-gaps 排除 no_data 空洞 |
 | 迭代9 | ✅ 已完成 | yfinance 美股数据源接入、多数据源路由架构、定时同步配置统一 |
 | 迭代10 | ✅ 已完成 | TuShare 美股数据源替代 yfinance、复权因子近似计算、前端周K/月K屏蔽 |
+| 迭代11 | ✅ 已完成 | AkShare 美股数据源替代 TuShare（免费无Token，数据源：东方财富）|
