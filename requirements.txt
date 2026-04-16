@@ -11,5 +11,8 @@ uvicorn[standard]>=0.29.0
 yfinance>=0.2.36
 pandas-market-calendars>=4.3.0
 
-# 迭代10：TuShare 美股数据源
-tushare>=1.4.0
+# 迭代10：TuShare 美股数据源（已禁用，保留代码）
+# tushare>=1.4.0
+
+# 迭代11：AkShare 美股数据源（当前主数据源）
+akshare>=1.12.0

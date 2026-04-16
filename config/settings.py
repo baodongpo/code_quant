@@ -83,15 +83,20 @@ YFINANCE_REQUEST_INTERVAL = float(os.getenv("YFINANCE_REQUEST_INTERVAL", "0.5"))
 YFINANCE_MAX_RETRIES = int(os.getenv("YFINANCE_MAX_RETRIES", "3"))  # 最大重试次数
 
 # ============================================================
-# TuShare 美股数据源配置（迭代10新增）
+# TuShare 美股数据源配置（迭代10新增，已禁用）
 # ============================================================
-TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")  # TuShare API Token
-TUSHARE_REQUEST_INTERVAL = float(os.getenv("TUSHARE_REQUEST_INTERVAL", "1.2"))  # 50次/分钟 → 1.2秒间隔
+TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")  # TuShare API Token（已禁用）
+TUSHARE_REQUEST_INTERVAL = float(os.getenv("TUSHARE_REQUEST_INTERVAL", "1.2"))
 
-# 美股数据源：tushare（默认）或 yfinance（已禁用）
-US_STOCK_SOURCE = os.getenv("US_STOCK_SOURCE", "tushare")
+# ============================================================
+# AkShare 美股数据源配置（迭代11新增）
+# ============================================================
+AKSHARE_REQUEST_INTERVAL = float(os.getenv("AKSHARE_REQUEST_INTERVAL", "1.0"))  # 请求间隔（秒）
+
+# 美股数据源：akshare（默认）
+US_STOCK_SOURCE = os.getenv("US_STOCK_SOURCE", "akshare")
 
 # ============================================================
 # 系统版本号（硬编码，随代码发布更新，不依赖 .env 配置文件）
 # ============================================================
-APP_VERSION = "v0.9.2"
+APP_VERSION = "v0.9.3"

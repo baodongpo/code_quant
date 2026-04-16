@@ -23,8 +23,11 @@ from yfinance_wrap.client import YFinanceClient
 from yfinance_wrap.kline_fetcher import YFinanceKlineFetcher
 from yfinance_wrap.adjust_fetcher import YFinanceAdjustFetcher
 
-# 迭代10：TuShare 美股数据源（主数据源）
+# 迭代10：TuShare 美股数据源（已禁用，保留代码）
 from tushare_wrap import TuShareClient, TuShareKlineFetcher, TuShareAdjustFetcher, TuShareCalendarFetcher
+
+# 迭代11：AkShare 美股数据源（主数据源）
+from akshare_wrap import AkShareClient, AkShareKlineFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +56,12 @@ class SyncEngine:
         yfinance_kline_fetcher: YFinanceKlineFetcher = None,
         yfinance_adjust_fetcher: YFinanceAdjustFetcher = None,
         yfinance_calendar_fetcher = None,  # YFinanceCalendarFetcher
-        # 迭代10：TuShare 美股数据源（主数据源）
+        # 迭代10：TuShare 美股数据源（已禁用，保留参数兼容）
         tushare_kline_fetcher: TuShareKlineFetcher = None,
         tushare_adjust_fetcher: TuShareAdjustFetcher = None,
         tushare_calendar_fetcher: TuShareCalendarFetcher = None,
+        # 迭代11：AkShare 美股数据源（主数据源）
+        akshare_kline_fetcher: AkShareKlineFetcher = None,
     ):
         self._kline_repo = kline_repo
         self._calendar_repo = calendar_repo
@@ -73,10 +78,12 @@ class SyncEngine:
         self._yfinance_kline_fetcher = yfinance_kline_fetcher
         self._yfinance_adjust_fetcher = yfinance_adjust_fetcher
         self._yfinance_calendar_fetcher = yfinance_calendar_fetcher
-        # 迭代10：TuShare 美股数据源（主数据源）
+        # 迭代10：TuShare 美股数据源（已禁用）
         self._tushare_kline_fetcher = tushare_kline_fetcher
         self._tushare_adjust_fetcher = tushare_adjust_fetcher
         self._tushare_calendar_fetcher = tushare_calendar_fetcher
+        # 迭代11：AkShare 美股数据源（主数据源）
+        self._akshare_kline_fetcher = akshare_kline_fetcher
 
     def recover_running_states(self) -> List[str]:
         """
@@ -254,9 +261,9 @@ class SyncEngine:
         # 3. 确保交易日历已存在（使用通用限频器）
         self._ensure_calendar(stock.market, start_date, today)
 
-        # 迭代10：美股使用 TuShare（先拉K线，再单独拉复权因子）
+        # 迭代11：美股使用 AkShare（K线已前复权，无需单独拉复权因子）
         # 富途流程不变：先刷新复权因子再拉K线
-        is_us_stock = stock_code.startswith("US.") and self._tushare_kline_fetcher is not None
+        is_us_stock = stock_code.startswith("US.") and self._akshare_kline_fetcher is not None
 
         if not is_us_stock:
             # 4a. 富途：先刷新复权因子（使用通用限频器，仅追加新事件）
@@ -273,9 +280,8 @@ class SyncEngine:
             latest_date=_latest_date_arg
         )
 
-        # 迭代10：美股使用 TuShare，单独拉取复权因子
-        if is_us_stock:
-            self._refresh_adjust_factors_from_tushare(stock_code, fetch_start, today)
+        # 迭代11：AkShare 返回前复权数据，无需单独拉取复权因子
+        # 无需存储复权因子，因为 AkShare 返回的数据已是前复权价格
 
         # 6. 检测并修复剩余空洞（主拉取完成后再检测，初次同步后空洞应极少）
         self._heal_gaps(stock, period, start_date, today)
@@ -297,7 +303,8 @@ class SyncEngine:
     def _ensure_calendar(self, market: str, start_date: str, end_date: str) -> None:
         """确保交易日历已存在，不足则从 API 拉取补充。
         
-        迭代10：按市场码路由日历 Fetcher（US → TuShare，其他 → 富途）。
+        迭代11：美股使用 TuShareCalendarFetcher（底层 pandas-market-calendars NYSE），
+        其他市场使用富途。注意：TuShareCalendarFetcher 不依赖 TuShare Token。
         """
         calendar_market = A_STOCK_CALENDAR_MARKET if market == "A" else market
 
@@ -306,7 +313,7 @@ class SyncEngine:
                 "Fetching trading calendar for %s [%s~%s]",
                 calendar_market, start_date, end_date
             )
-            # 迭代10：美股使用 TuShare 日历（pandas-market-calendars），其他使用富途
+            # 迭代11：美股使用 TuShareCalendarFetcher（pandas-market-calendars NYSE，无需 Token）
             if calendar_market == "US" and self._tushare_calendar_fetcher is not None:
                 trading_days = self._tushare_calendar_fetcher.fetch(
                     calendar_market, start_date, end_date
@@ -325,11 +332,12 @@ class SyncEngine:
     def _refresh_adjust_factors(self, stock_code: str) -> None:
         """从 API 拉取复权因子，仅追加新事件。
         
-        迭代10：按市场码路由 Fetcher（US → TuShare，其他 → 富途）。
+        迭代11：美股使用 AkShare（K线已前复权，不调用此方法）。
+        此方法仅用于富途股票（A股/港股）。
         """
         logger.debug("Refreshing adjust factors for %s", stock_code)
         try:
-            # 迭代10：美股使用 TuShare adjust fetcher
+            # 迭代11：TuShare 已禁用，此分支不会触发（self._tushare_adjust_fetcher 为 None）
             if stock_code.startswith("US.") and self._tushare_adjust_fetcher is not None:
                 factors = self._tushare_adjust_fetcher.fetch_factors(stock_code)
             else:
@@ -353,8 +361,8 @@ class SyncEngine:
         """
         迭代10：从 TuShare 获取复权因子（独立 API 调用）。
         
-        TuShare 提供 us_adjfactor 接口直接获取复权因子，
-        不像 yfinance 需要从 Adj Close 推算。
+        迭代11：TuShare 已禁用，此方法保留但不会被调用。
+        AkShare 返回前复权价格，无需单独获取复权因子。
         """
         if self._tushare_adjust_fetcher is None:
             return
@@ -600,8 +608,7 @@ class SyncEngine:
         """
         stock_code = stock.stock_code
 
-        # 迭代10：美股使用 TuShare（仅支持日K）
-        # TuShare 不像 yfinance 需要从 Adj Close 推算复权因子，直接拉K线即可
+        # 迭代11：美股使用 AkShare（仅支持日K，返回前复权价格）
         bars = self._fetch_klines_paged(stock_code, period, start_date, end_date)
 
         rows_fetched = len(bars)
@@ -667,15 +674,18 @@ class SyncEngine:
         """
         拉取K线（分页/单次，取决于数据源）。
         
-        迭代10：按市场码路由 Fetcher（US → TuShare，其他 → 富途）。
+        迭代11：按市场码路由 Fetcher（US → AkShare，其他 → 富途）。
         """
         fetcher = self._get_kline_fetcher(stock_code)
         return fetcher.fetch(stock_code, period, start_date, end_date)
 
     def _get_kline_fetcher(self, stock_code: str):
-        """按市场码返回对应的 K线 Fetcher。"""
-        if stock_code.startswith("US.") and self._tushare_kline_fetcher is not None:
-            return self._tushare_kline_fetcher
+        """按市场码返回对应的 K线 Fetcher。
+        
+        迭代11：美股使用 AkShare（支持日K前复权），其他使用富途。
+        """
+        if stock_code.startswith("US.") and self._akshare_kline_fetcher is not None:
+            return self._akshare_kline_fetcher
         return self._kline_fetcher
 
     def repair_one(

@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **迭代10 已完成**（2026-04-15），最新 tag `v0.9.2`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅
+- **迭代11 进行中**（2026-04-15），最新 tag `v0.9.3`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）🚧
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **当前迭代**：迭代10 已完成 — TuShare 美股数据源替代 yfinance
+- **当前迭代**：迭代11 进行中 — AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
 
 ---
 
@@ -23,7 +23,7 @@
 | 项目 | 选型 |
 |------|------|
 | 数据库 | SQLite（WAL 模式） |
-| 数据源 | A股/港股：富途 OpenD（futu-api）；美股：TuShare |
+| 数据源 | A股/港股：富途 OpenD（futu-api）；美股：AkShare（免费，无 Token） |
 | 复权策略 | 存原始价格 + adjust_factors 表，算法层动态前复权 |
 | K线粒度 | 日K（1D）、周K（1W）、月K（1M） |
 | 虚拟环境 | mamba，路径 `./env_quant`，Python 3.10 |
@@ -41,7 +41,8 @@ db/schema.py         # 所有 DDL，init_db() 建表
 db/repositories/     # 7个 repo（stocks/kline/calendar/sync_meta/gap/adjust_factor/subscription）
 futu_wrap/           # FutuClient, KlineFetcher, CalendarFetcher, AdjustFactorFetcher, SubscriptionManager
 yfinance_wrap/       # 【迭代9，已禁用】YFinanceClient 等（保留代码）
-tushare_wrap/        # 【迭代10新增】TuShareClient, TuShareKlineFetcher, TuShareAdjustFetcher（美股数据源）
+tushare_wrap/        # 【迭代10，已禁用】TuShareClient 等（保留代码）
+akshare_wrap/        # 【迭代11新增】AkShareClient, AkShareKlineFetcher（美股数据源，无 Token）
 core/                # RateLimiter, WatchlistManager, AdjustmentService, GapDetector, KlineValidator, SyncEngine
 core/indicator_engine.py  # 【迭代3新增】7个技术指标计算 + 信号判断
 api/                 # 【迭代3新增】FastAPI 后端 REST API（只读）
@@ -206,6 +207,12 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] FEAT-adj-approx：复权因子近似计算（从 close/pre_close 计算，120积分试用可用）
   - [x] FEAT-us-period-filter：前端屏蔽美股周K/月K选项（TuShare 仅支持日K）
   - [x] FEAT-rate-limit：TuShare 限频适配（50次/分钟、8000次/天）
+- [ ] 迭代11（进行中 2026-04-15，tag v0.9.3）：
+  - [x] FEAT-akshare：AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
+  - [x] FEAT-akshare-rate-limit：AkShare 限频适配（保守 30次/分钟 + 随机抖动，避免反爬）
+  - [x] FEAT-qfq：AkShare 返回前复权价格（adjust='qfq'），复权因子记录为 baseline 1.0
+  - [ ] FEAT-calendar：复用 TuShareCalendarFetcher（pandas-market-calendars NYSE）
+  - [ ] TEST：QA 测试验证
 
 ---
 
