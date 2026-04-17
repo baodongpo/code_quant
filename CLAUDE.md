@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-- **迭代13-patch 已完成**（2026-04-17），最新 tag `v1.0.0rc`
+- **v1.0.0 正式版已发布**（2026-04-17），最新 tag `v1.0.0`
 - 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）🚧
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **当前迭代**：迭代11 进行中 — AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
@@ -254,6 +254,9 @@ git push origin main && git push origin <版本号>
   - [x] FEAT-akshare-fallback：`US_STOCK_SOURCE=akshare` 手动降级路径保留，自动屏蔽周K/月K
   - [x] FEAT-market-group-selector：首页股票下拉按市场分组（A股/港股/美股），组内保留信号颜色
   - [x] FEAT-market-group-watchlist：Watchlist 总览页按市场分组展示，每组显示标题行
+- [x] v1.0.0 正式版（2026-04-17，tag v1.0.0）：
+  - [x] BUG-us-weekly-monthly：美股从 akshare 切换至 futu 后，周K/月K sync_metadata 遗留 failed 状态，重置为 pending 修复全量同步
+  - [x] FEAT-release-flow：CLAUDE.md 新增"发布流程"标准化步骤，未来一键执行
 
 ---
 
