@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-- **迭代11 进行中**（2026-04-15），最新 tag `v0.9.3`
+- **迭代13-patch 已完成**（2026-04-17），最新 tag `v1.0.0rc`
 - 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）🚧
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
 - **当前迭代**：迭代11 进行中 — AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
@@ -212,7 +212,10 @@ tail -f logs/sync_$(date +%Y%m%d).log
   - [x] FEAT-akshare-rate-limit：AkShare 限频适配（保守 30次/分钟 + 随机抖动，避免反爬）
   - [x] FEAT-qfq：AkShare 返回前复权价格（adjust='qfq'），复权因子记录为 baseline 1.0
   - [x] FEAT-calendar：复用 TuShareCalendarFetcher（pandas-market-calendars NYSE）
-- [x] 迭代12（已完成 2026-04-16，tag v0.9.4）：
+- [x] 迭代13-patch（已完成 2026-04-17，tag v1.0.0rc）：
+  - [x] BUG-period：PeriodSelector 美股周K/月K 在缺省数据源（null）时被错误隐藏，改为明确非 futu 才降级
+  - [x] BUG-stock-selector：首页股票下拉市场分组后多空中性颜色区分消失，改为市场+信号双层扁平化 optgroup；中性颜色改为灰色
+  - [x] FEAT-version：版本号更新为 v1.0.0rc
   - [x] FEAT-futu-us：futu 作为默认美股数据源（日K/周K/月K 全支持），替代 AkShare（仅日K）
   - [x] FEAT-us-period-unlock：前端 PeriodSelector 基于后端 `us_stock_source` 配置动态展示周K/月K（futu 时全显示，akshare 降级时仅日K）
   - [x] FEAT-akshare-fallback：`US_STOCK_SOURCE=akshare` 手动降级路径保留，自动屏蔽周K/月K
