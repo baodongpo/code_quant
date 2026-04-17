@@ -109,6 +109,39 @@ tail -f logs/sync_$(date +%Y%m%d).log
 
 ---
 
+## 发布流程
+
+> 每次迭代完成后，按以下步骤执行发布。未来只要说"发布流程"，即执行下列全部步骤。
+
+```bash
+# 步骤 1：前端构建 + 打包制品
+bash pack.sh <版本号>
+# 例：bash pack.sh v1.0.0rc
+# 产物：dist/code_quant-v1.0.0rc-YYYYMMDD.tar.gz
+
+# 步骤 2：更新 config/settings.py 版本号
+# APP_VERSION = "<版本号>"
+
+# 步骤 3：更新 CLAUDE.md
+# - 顶部"当前状态"行：更新迭代名称、完成日期、最新 tag
+# - 待办事项列表：新增本次迭代 changelog 条目
+
+# 步骤 4：更新 README.md
+# - 迭代路线图表格：新增一行（迭代名 | 状态 | 主要变更摘要）
+
+# 步骤 5：提交代码
+git add config/settings.py CLAUDE.md README.md
+git commit -m "chore: release <版本号>"
+
+# 步骤 6：打 tag
+git tag <版本号>
+
+# 步骤 7：推送到远程
+git push origin main && git push origin <版本号>
+```
+
+---
+
 ## 待办事项
 
 - [x] 迭代1：K线采集（已完成，tag v0.1.0）
