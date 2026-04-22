@@ -736,3 +736,4 @@ code_quant/
 | 迭代12 | ✅ 已完成（v0.9.4）| futu 统一美股数据源（日K/周K/月K），AkShare 降级备选；UI 按市场分组（首页下拉 + Watchlist）|
 | 迭代13-patch | ✅ 已完成（v1.0.0rc）| 美股周K/月K缺省显示修复；首页股票下拉市场+信号双层分组（红多灰中绿空）|
 | v1.0.0 正式版 | ✅ 已完成（v1.0.0）| 美股周K/月K同步状态修复（akshare遗留failed重置）；发布流程标准化 |
+| 迭代14 | ✅ 已完成（v1.1.0）| 前端视觉重设计：Midnight Amber 主题（#080b0f深黑背景、#e8a838琥珀accent、JetBrains Mono等宽字体）；全局配色系统重构（colors.js）；所有组件视觉风格统一；无emoji无圆角专业工具外观 |
