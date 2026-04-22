@@ -1,14 +1,17 @@
 /**
  * components/TimeRangeSelector.jsx — 时间范围选择
+ *
+ * Midnight Amber 主题：方角按钮、等宽字体、琥珀 accent
  * 预设按钮 + 自定义日期区间
  */
 import React, { useState } from 'react'
+import { C } from '../utils/colors.js'
 
 const PRESETS = [
-  { label: '近3月', days: 90  },
-  { label: '近6月', days: 180 },
-  { label: '近1年', days: 365 },
-  { label: '近3年', days: 1095},
+  { label: '3M',  days: 90  },
+  { label: '6M',  days: 180 },
+  { label: '1Y',  days: 365 },
+  { label: '3Y',  days: 1095},
 ]
 
 function toDateStr(d) {
@@ -40,12 +43,18 @@ export default function TimeRangeSelector({ start, end, onChange }) {
   }
 
   const btnBase = {
-    padding: '4px 10px', borderRadius: 6, border: '1px solid',
-    fontSize: 12, cursor: 'pointer', transition: 'all 0.15s',
+    padding:       '4px 10px',
+    borderRadius:  2,
+    border:        '1px solid',
+    fontSize:      11,
+    fontFamily:    C.fontData,
+    letterSpacing: '0.06em',
+    cursor:        'pointer',
+    transition:    'all 0.12s',
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
       {PRESETS.map(p => {
         const presetStart = daysAgo(p.days)
         const active = !customMode && start === presetStart && end === today
@@ -55,9 +64,10 @@ export default function TimeRangeSelector({ start, end, onChange }) {
             onClick={() => handlePreset(p.days)}
             style={{
               ...btnBase,
-              borderColor: active ? '#388bfd' : '#30363d',
-              background:  active ? '#1f3a5e' : '#1c2128',
-              color:       active ? '#79c0ff' : '#8b949e',
+              borderColor: active ? C.accent : C.border2,
+              background:  active ? C.accentBg : 'transparent',
+              color:       active ? C.accentText : C.textDim,
+              fontWeight:  active ? 700 : 400,
             }}
           >
             {p.label}
@@ -68,12 +78,13 @@ export default function TimeRangeSelector({ start, end, onChange }) {
         onClick={() => setCustomMode(m => !m)}
         style={{
           ...btnBase,
-          borderColor: customMode ? '#388bfd' : '#30363d',
-          background:  customMode ? '#1f3a5e' : '#1c2128',
-          color:       customMode ? '#79c0ff' : '#8b949e',
+          borderColor: customMode ? C.accent : C.border2,
+          background:  customMode ? C.accentBg : 'transparent',
+          color:       customMode ? C.accentText : C.textDim,
+          fontWeight:  customMode ? 700 : 400,
         }}
       >
-        自定义
+        CUSTOM
       </button>
       {customMode && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
@@ -82,25 +93,44 @@ export default function TimeRangeSelector({ start, end, onChange }) {
             value={customStart}
             max={customEnd}
             onChange={e => setCustomStart(e.target.value)}
-            style={{ background: '#1c2128', border: '1px solid #30363d', color: '#e6edf3',
-                     padding: '3px 6px', borderRadius: 4, fontSize: 12 }}
+            style={{
+              background:  C.panelBg,
+              border:      `1px solid ${C.border2}`,
+              color:       C.text,
+              padding:     '3px 6px',
+              borderRadius: 2,
+              fontSize:    11,
+              fontFamily:  C.fontData,
+            }}
           />
-          <span style={{ color: '#8b949e', fontSize: 12 }}>~</span>
+          <span style={{ color: C.textDim, fontSize: 11, fontFamily: C.fontData }}>—</span>
           <input
             type="date"
             value={customEnd}
             min={customStart}
             max={today}
             onChange={e => setCustomEnd(e.target.value)}
-            style={{ background: '#1c2128', border: '1px solid #30363d', color: '#e6edf3',
-                     padding: '3px 6px', borderRadius: 4, fontSize: 12 }}
+            style={{
+              background:  C.panelBg,
+              border:      `1px solid ${C.border2}`,
+              color:       C.text,
+              padding:     '3px 6px',
+              borderRadius: 2,
+              fontSize:    11,
+              fontFamily:  C.fontData,
+            }}
           />
           <button
             onClick={handleCustomApply}
-            style={{ ...btnBase, borderColor: '#388bfd', background: '#1f3a5e',
-                     color: '#79c0ff', fontWeight: 600 }}
+            style={{
+              ...btnBase,
+              borderColor: C.accent,
+              background:  C.accentBg,
+              color:       C.accentText,
+              fontWeight:  700,
+            }}
           >
-            确认
+            OK
           </button>
         </div>
       )}

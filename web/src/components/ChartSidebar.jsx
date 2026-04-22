@@ -1,11 +1,13 @@
 /**
  * components/ChartSidebar.jsx — 图表右侧固定说明栏（200px）
  *
+ * Midnight Amber 主题：方角、等宽数值、细边框
+ *
  * 每个图表（主图 + MACD + RSI + KDJ）右侧紧贴的固定 200px 说明栏，
  * 始终可见，包含：当前指标值/信号标签 + HTML图例
  *
  * Props:
- *   title        - 面板标题（如 "📶 MACD 趋势动能"）
+ *   title        - 面板标题（如 "MACD 趋势动能"）
  *   signal       - 信号值（bullish/bearish/neutral）
  *   signalLabel  - 信号文案（可选）
  *   valueItems   - Array<{ label, value, type? }>  指标当前值
@@ -13,21 +15,15 @@
  *   guideItems   - Array<{ dotType?, dotColor?, text }> (保留接口，不再渲染)
  *   onToggle     - 折叠回调（可选），传入时在右上角渲染折叠按钮（∧）
  *
- * 迭代8变更：
- *   - [?] 按钮 + guideItems 渲染逻辑已移除（统一迁移至各面板顶部）
- *   - 新增 onToggle prop，当传入时在 Sidebar 右上角渲染折叠按钮
- *   - position: relative 支持 absolute 折叠按钮定位
- *
  * 强制规范（CLAUDE.md 裁定）：
  *   guideItems 文案严禁包含任何买卖操作指令，只允许描述现象/机制。
- *   未来新增指标时同样必须补充各面板内部 HELP_ITEMS，且遵守此规范。
  */
 import React, { useState } from 'react'
 import { C } from '../utils/colors.js'
 
 const SIGNAL_STYLE = {
-  bullish: { bg: '#3a1a1a', border: C.buy,           text: C.buyText  },
-  bearish: { bg: '#1a3a2a', border: C.sell,          text: C.sellText },
+  bullish: { bg: C.buyBg,     border: C.buyBorder,     text: C.buyText  },
+  bearish: { bg: C.sellBg,    border: C.sellBorder,    text: C.sellText },
   neutral: { bg: C.neutralBg, border: C.neutralBorder, text: C.neutralText },
 }
 
@@ -37,22 +33,21 @@ export default function ChartSidebar({
   signalLabel,
   valueItems = [],
   legendItems = [],
-  guideItems  = [],  // deprecated：保留 prop 接口，不再渲染（说明浮层已迁至各面板顶部）
+  guideItems  = [],  // deprecated：保留 prop 接口，不再渲染
   onToggle,
-  onLegendToggle,   // FEAT-legend-toggle：图例点击回调 (seriesName: string) => void
+  onLegendToggle,
 }) {
   const sigStyle = SIGNAL_STYLE[signal] || SIGNAL_STYLE.neutral
-  // FEAT-legend-toggle：activeMap 记录各 seriesName 的显示状态，缺省视为 true（active）
   const [activeMap, setActiveMap] = useState({})
 
   return (
     <div style={{
       width:          '14%',
-      minWidth:       200,
-      maxWidth:       280,
+      minWidth:       190,
+      maxWidth:       260,
       background:     C.panelBg,
       borderLeft:     `1px solid ${C.border}`,
-      padding:        14,
+      padding:        '12px 12px',
       display:        'flex',
       flexDirection:  'column',
       justifyContent: 'center',
@@ -70,22 +65,31 @@ export default function ChartSidebar({
             right:        8,
             background:   'none',
             border:       `1px solid ${C.border2}`,
-            borderRadius: 4,
-            color:        C.textMuted,
-            fontSize:     12,
+            borderRadius: 2,
+            color:        C.textDim,
+            fontSize:     10,
+            fontFamily:   C.fontData,
             cursor:       'pointer',
-            padding:      '2px 8px',
+            padding:      '1px 6px',
+            letterSpacing: '0.05em',
           }}
           title="折叠"
         >∧</button>
       )}
 
-      {/* 标题（[?] 按钮已移至各面板顶部，此处仅保留标题文字） */}
+      {/* 标题 */}
       {title && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: C.text, flex: 1 }}>
-            {title}
-          </span>
+        <div style={{
+          fontSize:      11,
+          fontFamily:    C.fontUI,
+          fontWeight:    700,
+          letterSpacing: '0.06em',
+          color:         C.textMuted,
+          textTransform: 'uppercase',
+          paddingBottom: 8,
+          borderBottom:  `1px solid ${C.border}`,
+        }}>
+          {title}
         </div>
       )}
 
@@ -96,8 +100,21 @@ export default function ChartSidebar({
           : C.text
         return (
           <div key={i}>
-            <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 2 }}>{item.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: valColor }}>{item.value}</div>
+            <div style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+              marginBottom:  3,
+            }}>{item.label}</div>
+            <div style={{
+              fontSize:   18,
+              fontFamily: C.fontData,
+              fontWeight: 600,
+              color:      valColor,
+              letterSpacing: '-0.01em',
+            }}>{item.value}</div>
           </div>
         )
       })}
@@ -105,16 +122,18 @@ export default function ChartSidebar({
       {/* 信号标签 */}
       {signal && (
         <span style={{
-          display:      'inline-flex',
-          alignItems:   'center',
-          padding:      '4px 10px',
-          borderRadius: 12,
-          fontSize:     11,
-          fontWeight:   600,
-          background:   sigStyle.bg,
-          border:       `1px solid ${sigStyle.border}`,
-          color:        sigStyle.text,
-          width:        'fit-content',
+          display:       'inline-flex',
+          alignItems:    'center',
+          padding:       '3px 8px',
+          borderRadius:  2,
+          fontSize:      10,
+          fontFamily:    C.fontData,
+          fontWeight:    500,
+          letterSpacing: '0.04em',
+          background:    sigStyle.bg,
+          border:        `1px solid ${sigStyle.border}`,
+          color:         sigStyle.text,
+          width:         'fit-content',
         }}>
           {signalLabel || signal}
         </span>
@@ -122,21 +141,19 @@ export default function ChartSidebar({
 
       {/* 分割线 */}
       {legendItems.length > 0 && (
-        <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '2px 0' }} />
+        <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '0' }} />
       )}
 
       {/* HTML 图例 */}
       {legendItems.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px', padding: '4px 0 2px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 8px', padding: '2px 0' }}>
           {legendItems.map((item, i) => {
             if (item.seriesName) {
-              // FEAT-legend-toggle：有 seriesName 的条目渲染为可点击按钮
               const isActive = activeMap[item.seriesName] !== false
               return (
                 <button
                   key={i}
                   onClick={() => {
-                    // 切换 activeMap 中该 seriesName 的状态
                     setActiveMap(prev => ({ ...prev, [item.seriesName]: prev[item.seriesName] === false ? true : false }))
                     onLegendToggle?.(item.seriesName)
                   }}
@@ -145,6 +162,7 @@ export default function ChartSidebar({
                     alignItems: 'center',
                     gap:        5,
                     fontSize:   10,
+                    fontFamily: C.fontData,
                     whiteSpace: 'nowrap',
                     cursor:     'pointer',
                     background: 'none',
@@ -154,19 +172,26 @@ export default function ChartSidebar({
                   }}
                   title={isActive ? `隐藏 ${item.label}` : `显示 ${item.label}`}
                 >
-                  <span style={{ opacity: isActive ? 1 : 0.35 }}>
+                  <span style={{ opacity: isActive ? 1 : 0.3 }}>
                     <LegendMark type={item.type} color={item.color} />
                   </span>
                   <span style={{
                     textDecoration: isActive ? 'none' : 'line-through',
-                    opacity:        isActive ? 1 : 0.35,
+                    opacity:        isActive ? 1 : 0.3,
                   }}>{item.label}</span>
                 </button>
               )
             }
-            // 无 seriesName：保持原有纯展示 div
             return (
-              <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap' }}>
+              <div key={i} style={{
+                display:    'inline-flex',
+                alignItems: 'center',
+                gap:        5,
+                fontSize:   10,
+                fontFamily: C.fontData,
+                color:      C.textMuted,
+                whiteSpace: 'nowrap',
+              }}>
                 <LegendMark type={item.type} color={item.color} />
                 <span>{item.label}</span>
               </div>
@@ -184,32 +209,20 @@ export default function ChartSidebar({
  */
 export function LegendMark({ type, color }) {
   if (type === 'line') {
-    return <span style={{ width: 18, height: 2, background: color, borderRadius: 1, flexShrink: 0, display: 'inline-block' }} />
+    return <span style={{ width: 16, height: 2, background: color, borderRadius: 0, flexShrink: 0, display: 'inline-block' }} />
   }
   if (type === 'dashed') {
     return (
       <span style={{
-        width:        18,
-        height:       0,
-        borderTop:    `2px dashed ${color}`,
-        flexShrink:   0,
-        display:      'inline-block',
+        width:      16,
+        height:     0,
+        borderTop:  `2px dashed ${color}`,
+        flexShrink: 0,
+        display:    'inline-block',
       }} />
     )
   }
   if (type === 'circle') {
-    return (
-      <span style={{
-        width:        8,
-        height:       8,
-        borderRadius: '50%',
-        background:   color,
-        flexShrink:   0,
-        display:      'inline-block',
-      }} />
-    )
-  }
-  if (type === 'dot') {
     return (
       <span style={{
         width:        7,
@@ -221,12 +234,24 @@ export function LegendMark({ type, color }) {
       }} />
     )
   }
-  if (type === 'bar') {
+  if (type === 'dot') {
     return (
       <span style={{
         width:        6,
-        height:       12,
-        borderRadius: 1,
+        height:       6,
+        borderRadius: '50%',
+        background:   color,
+        flexShrink:   0,
+        display:      'inline-block',
+      }} />
+    )
+  }
+  if (type === 'bar') {
+    return (
+      <span style={{
+        width:        5,
+        height:       11,
+        borderRadius: 0,
         background:   color,
         flexShrink:   0,
         display:      'inline-block',
@@ -236,9 +261,9 @@ export function LegendMark({ type, color }) {
   // default fallback
   return (
     <span style={{
-      width:        10,
-      height:       10,
-      borderRadius: 2,
+      width:        9,
+      height:       9,
+      borderRadius: 1,
       background:   color,
       flexShrink:   0,
       display:      'inline-block',

@@ -1,12 +1,10 @@
 /**
  * components/BottomBar.jsx — 底部信息条（双层）
  *
+ * Midnight Amber 主题：等宽数值、方角按钮
+ *
  * 第一层（始终可见）：收盘价 / 涨跌幅 / PE / PB
  * 第二层（可折叠，默认展开）：指标信号标签（RSI/MACD/KDJ/BOLL/MA）
- *
- * v3.5 变更：
- *   - 双层结构，信息层次更清晰
- *   - 配色遵循红买绿卖（通过 signals.js 全局生效）
  */
 import React, { useState } from 'react'
 import SignalTag from './SignalTag.jsx'
@@ -32,11 +30,11 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
 
   return (
     <div style={{
-      margin:       '0 0',
-      background:   C.panelBg,
-      borderTop:    `1px solid ${C.border}`,
-      fontSize:     13,
-      color:        C.text,
+      margin:     '0 0',
+      background: C.panelBg,
+      borderTop:  `1px solid ${C.border}`,
+      fontSize:   13,
+      color:      C.text,
     }}>
       {/* 第一层：基础行情（始终可见） */}
       <div style={{
@@ -44,33 +42,73 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
         alignItems: 'center',
         flexWrap:   'wrap',
         gap:        16,
-        padding:    '10px 16px 8px',
+        padding:    '8px 16px',
       }}>
         {/* 最新价 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: C.textMuted, fontSize: 12 }}>收盘</span>
-          <b style={{ fontSize: 18 }}>{fmt(latestBar.close)}</b>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{
+            fontSize:      9,
+            fontFamily:    C.fontUI,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color:         C.textDim,
+          }}>CLOSE</span>
+          <span style={{
+            fontSize:   20,
+            fontFamily: C.fontData,
+            fontWeight: 600,
+            color:      C.text,
+            letterSpacing: '-0.01em',
+          }}>{fmt(latestBar.close)}</span>
           {changePct != null && (
-            <span style={{ color: changeColor, fontWeight: 600, fontSize: 13 }}>
+            <span style={{
+              color:      changeColor,
+              fontFamily: C.fontData,
+              fontWeight: 600,
+              fontSize:   12,
+              letterSpacing: '0.02em',
+            }}>
               {parseFloat(changePct) >= 0 ? '▲' : '▼'} {parseFloat(changePct) >= 0 ? '+' : ''}{changePct}%
             </span>
           )}
         </div>
 
         {/* 分隔线 */}
-        <div style={{ width: 1, height: 22, background: C.border2 }} />
+        <div style={{ width: 1, height: 20, background: C.border2 }} />
 
         {/* 估值 */}
         {latestBar.pe_ratio != null && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ color: C.textDim, fontSize: 10 }}>PE (TTM)</span>
-            <b style={{ color: C.text, fontSize: 13 }}>{fmt(latestBar.pe_ratio)}</b>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>PE (TTM)</span>
+            <span style={{
+              fontFamily: C.fontData,
+              fontWeight: 600,
+              color:      C.text,
+              fontSize:   13,
+            }}>{fmt(latestBar.pe_ratio)}</span>
           </div>
         )}
         {latestBar.pb_ratio != null && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ color: C.textDim, fontSize: 10 }}>PB</span>
-            <b style={{ color: C.text, fontSize: 13 }}>{fmt(latestBar.pb_ratio)}</b>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>PB</span>
+            <span style={{
+              fontFamily: C.fontData,
+              fontWeight: 600,
+              color:      C.text,
+              fontSize:   13,
+            }}>{fmt(latestBar.pb_ratio)}</span>
           </div>
         )}
 
@@ -79,16 +117,18 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
           <button
             onClick={() => setSignalsExpanded(v => !v)}
             style={{
-              background:   'none',
-              border:       `1px solid ${C.border2}`,
-              borderRadius: 6,
-              color:        C.textMuted,
-              fontSize:     11,
-              cursor:       'pointer',
-              padding:      '3px 10px',
+              background:    'none',
+              border:        `1px solid ${C.border2}`,
+              borderRadius:  2,
+              color:         C.textDim,
+              fontSize:      10,
+              fontFamily:    C.fontData,
+              letterSpacing: '0.06em',
+              cursor:        'pointer',
+              padding:       '3px 10px',
             }}
           >
-            {signalsExpanded ? '折叠指标 ∧' : '展开指标 ∨'}
+            {signalsExpanded ? 'SIGNALS ∧' : 'SIGNALS ∨'}
           </button>
         </div>
       </div>
@@ -104,39 +144,74 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
           display:    'flex',
           alignItems: 'center',
           flexWrap:   'wrap',
-          gap:        12,
-          padding:    '8px 16px 10px',
+          gap:        10,
+          padding:    '7px 16px 9px',
         }}>
           {/* RSI */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textMuted, fontSize: 12 }}>RSI</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>RSI</span>
             {rsiValue != null && (
-              <span style={{ fontWeight: 600, fontSize: 12 }}>{rsiValue.toFixed(1)}</span>
+              <span style={{
+                fontFamily: C.fontData,
+                fontWeight: 600,
+                fontSize:   11,
+                color:      C.textMuted,
+              }}>{rsiValue.toFixed(1)}</span>
             )}
             <SignalTag indicator="RSI" signal={signals?.RSI || 'neutral'} />
           </div>
 
           {/* MACD */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textMuted, fontSize: 12 }}>MACD</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>MACD</span>
             <SignalTag indicator="MACD" signal={signals?.MACD || 'neutral'} />
           </div>
 
           {/* KDJ */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textMuted, fontSize: 12 }}>KDJ</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>KDJ</span>
             <SignalTag indicator="KDJ" signal={signals?.KDJ || 'neutral'} />
           </div>
 
           {/* BOLL */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textMuted, fontSize: 12 }}>BOLL</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>BOLL</span>
             <SignalTag indicator="BOLL" signal={signals?.BOLL || 'neutral'} />
           </div>
 
           {/* MA */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textMuted, fontSize: 12 }}>MA</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize:      9,
+              fontFamily:    C.fontUI,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color:         C.textDim,
+            }}>MA</span>
             <SignalTag indicator="MA" signal={signals?.MA || 'neutral'} />
           </div>
         </div>

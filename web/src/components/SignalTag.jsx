@@ -1,11 +1,11 @@
 /**
  * components/SignalTag.jsx — 通用信号标签组件
  *
- * v3.5 更新：字号 13px，圆角 6px，内边距 5px 10px，最小宽度 100px
- * 中性状态透明度降低，减少视觉干扰
+ * Midnight Amber 主题：方形角 + 等宽字体 + 细边框
  */
 import React from 'react'
 import { getSignalLabel, getSignalColor } from '../utils/signals.js'
+import { C } from '../utils/colors.js'
 
 /**
  * @param {string} indicator  - 指标名称（BOLL/MACD/RSI/KDJ/MA/MAVOL/composite）
@@ -22,18 +22,20 @@ export default function SignalTag({ indicator, signal, override }) {
       display:        'inline-flex',
       alignItems:     'center',
       justifyContent: 'center',
-      padding:        '5px 10px',
-      borderRadius:   '6px',
-      fontSize:       '13px',
-      fontWeight:     600,
-      minWidth:       '100px',
+      padding:        '3px 8px',
+      borderRadius:   '2px',
+      fontSize:       '11px',
+      fontFamily:     C.fontData,
+      fontWeight:     500,
+      letterSpacing:  '0.02em',
+      minWidth:       '90px',
       textAlign:      'center',
       background:     colors.bg,
       border:         `1px solid ${colors.border}`,
       color:          colors.text,
       whiteSpace:     'nowrap',
       userSelect:     'none',
-      opacity:        isNeutral ? 0.7 : 1,
+      opacity:        isNeutral ? 0.65 : 1,
     }}>
       {label}
     </span>

@@ -1,79 +1,86 @@
 /**
  * utils/colors.js — 全局配色常量
  *
+ * 主题：Midnight Amber 量化终端
+ *   深冷黑底 (#080b0f) + 琥珀金 accent (#e8a838) + 冷白文字
+ *
  * 配色原则（A股习惯，红涨绿跌）：
  *   BUY  = 买入信号 = 红色系
  *   SELL = 卖出信号 = 绿色系
  */
 
 export const C = {
+  // ── 字体 ──
+  fontData: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+  fontUI:   "'Syne', -apple-system, BlinkMacSystemFont, sans-serif",
+
   // ── 买入信号（红色系） ──
-  buy:           '#f85149',          // 买入主色（强红）
-  buyBg:         '#3a1a1a',          // 买入背景
-  buyBgLight:    'rgba(248,81,73,0.12)',
-  buyText:       '#ff7b72',          // 买入文字（浅红）
-  buyBorder:     '#f85149',
+  buy:           '#e05252',          // 买入主色（暗红）
+  buyBg:         '#2a1212',          // 买入背景
+  buyBgLight:    'rgba(224,82,82,0.10)',
+  buyText:       '#f08080',          // 买入文字（浅红）
+  buyBorder:     '#c04040',
 
   // ── 卖出信号（绿色系） ──
-  sell:          '#2ea043',          // 卖出主色（强绿）
-  sellBg:        '#1a3a2a',          // 卖出背景
-  sellBgLight:   'rgba(46,160,67,0.12)',
-  sellText:      '#3fb950',          // 卖出文字（浅绿）
-  sellBorder:    '#2ea043',
+  sell:          '#3a9e6e',          // 卖出主色（深青绿）
+  sellBg:        '#0d2a1e',          // 卖出背景
+  sellBgLight:   'rgba(58,158,110,0.10)',
+  sellText:      '#5dbf95',          // 卖出文字（浅绿）
+  sellBorder:    '#2e8055',
 
   // ── 中性 ──
-  neutral:       '#8c8c8c',
-  neutralBg:     '#1c2128',
-  neutralBorder: '#484f58',
-  neutralText:   '#8b949e',
+  neutral:       '#6b7280',
+  neutralBg:     '#111418',
+  neutralBorder: '#2a2f38',
+  neutralText:   '#8892a0',
 
   // ── 超买/超卖区域背景（遵循红涨绿跌）──
-  // 超买 = 卖出信号 = 绿底
-  overbought:       'rgba(46,160,67,0.10)',
-  overboughtLine:   '#26a69a55',
-  // 超卖 = 买入信号 = 红底
-  oversold:         'rgba(248,81,73,0.10)',
-  oversoldLine:     '#ef535055',
+  overbought:       'rgba(58,158,110,0.08)',
+  overboughtLine:   '#3a9e6e44',
+  oversold:         'rgba(224,82,82,0.08)',
+  oversoldLine:     '#e0525244',
 
   // ── K线颜色 ──
-  candleUp:      '#ef5350',          // 阳线红
-  candleDown:    '#26a69a',          // 阴线绿
+  candleUp:      '#e05252',          // 阳线红
+  candleDown:    '#3a9e6e',          // 阴线绿
 
   // ── MA 均线 ──
-  ma5:           '#f0c040',
-  ma20:          '#388bfd',
-  ma60:          '#ff9500',
+  ma5:           '#e8a838',          // 琥珀金（accent）
+  ma20:          '#5b9bd5',          // 钢蓝
+  ma60:          '#c084fc',          // 淡紫
 
   // ── BOLL 轨道 ──
-  bollUpper:     '#f85149',
-  bollMid:       '#8b949e',
-  bollLower:     '#26a69a',
+  bollUpper:     '#e05252',
+  bollMid:       '#4a5568',
+  bollLower:     '#3a9e6e',
 
   // ── MACD ──
-  dif:           '#79c0ff',
-  dea:           '#f0c040',
-  macdBarPos:    '#ef535088',
-  macdBarNeg:    '#26a69a88',
+  dif:           '#5b9bd5',          // 蓝
+  dea:           '#e8a838',          // 琥珀
+  macdBarPos:    '#e0525266',
+  macdBarNeg:    '#3a9e6e66',
 
   // ── KDJ ──
-  kLine:         '#79c0ff',
-  dLine:         '#f0c040',
-  jLine:         '#bc8cff',
+  kLine:         '#5b9bd5',
+  dLine:         '#e8a838',
+  jLine:         '#c084fc',
 
   // ── 图表 UI ──
-  chartBg:       '#0d1117',
-  panelBg:       '#161b22',
-  border:        '#2d333b',
-  border2:       '#30363d',
-  text:          '#e6edf3',
-  textMuted:     '#8b949e',
-  textDim:       '#484f58',
-  gridLine:      '#21262d',
-  axisLine:      '#30363d',
-  accent:        '#388bfd',
-  accentBg:      'rgba(56,139,253,0.12)',
-  accentText:    '#79c0ff',
+  chartBg:       '#080b0f',
+  panelBg:       '#0e1117',
+  border:        '#1c2230',
+  border2:       '#252d3a',
+  text:          '#d4d8de',
+  textMuted:     '#8892a0',
+  textDim:       '#3e4655',
+  gridLine:      '#141920',
+  axisLine:      '#1c2230',
+
+  // ── Accent（琥珀金） ──
+  accent:        '#e8a838',
+  accentBg:      'rgba(232,168,56,0.10)',
+  accentText:    '#f0c060',
 
   // ── 免责声明 ──
-  disclaimer:    '#bfbfbf',
+  disclaimer:    '#6b7280',
 }

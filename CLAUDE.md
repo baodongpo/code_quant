@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **v1.0.0 正式版已发布**（2026-04-17），最新 tag `v1.0.0`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）🚧
+- **v1.1.0 已发布**（2026-04-22），最新 tag `v1.1.0`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）✅ 迭代12（futu统一美股数据源+市场分组UI）✅ 迭代13-patch（UI修复+futu美股）✅ v1.0.0（正式版发布）✅ 迭代14（Midnight Amber前端视觉重设计）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **当前迭代**：迭代11 进行中 — AkShare 美股数据源替代 TuShare（因 TuShare 试用限制每天仅5次美股接口调用）
+- **当前状态**：v1.1.0 已发布，前端视觉重设计（迭代14）完成
 
 ---
 
@@ -257,6 +257,13 @@ git push origin main && git push origin <版本号>
 - [x] v1.0.0 正式版（2026-04-17，tag v1.0.0）：
   - [x] BUG-us-weekly-monthly：美股从 akshare 切换至 futu 后，周K/月K sync_metadata 遗留 failed 状态，重置为 pending 修复全量同步
   - [x] FEAT-release-flow：CLAUDE.md 新增"发布流程"标准化步骤，未来一键执行
+- [x] 迭代14（2026-04-22，tag v1.1.0）：
+  - [x] FEAT-midnight-amber：前端全局视觉重设计，Midnight Amber 主题（#080b0f深黑背景、#0e1117面板背景、#e8a838琥珀accent）
+  - [x] FEAT-colors-system：colors.js 全局配色系统重构，所有组件通过 C.* token 引用颜色，禁止硬编码 hex
+  - [x] FEAT-font-system：JetBrains Mono（C.fontData，数据/等宽）+ Syne（C.fontUI，界面标签）双字体系统
+  - [x] FEAT-components-redesign：SignalBanner、SignalTag、VPADefenderPanel、WatchlistPage、StockAnalysis 等全部组件视觉统一
+  - [x] FEAT-no-emoji：UI 字符串全面去除 emoji，改用 Unicode 符号（▲▼—↑↓）
+  - [x] FEAT-square-style：borderRadius 统一不超过 3px，工业仪器方角风格
 
 ---
 
