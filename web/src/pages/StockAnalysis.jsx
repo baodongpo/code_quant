@@ -307,16 +307,45 @@ export default function StockAnalysis() {
         alignItems:   'center',
         flexWrap:     'wrap',
         gap:          12,
-        padding:      '10px 20px',
+        padding:      '8px 20px',
         background:   C.panelBg,
         borderBottom: `1px solid ${C.border}`,
         position:     'sticky',
         top:          0,
         zIndex:       100,
       }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: C.text, marginRight: 8, whiteSpace: 'nowrap' }}>
-          📈 {stockDisplayName || 'AI 量化决策'}
-        </span>
+        {/* 系统标识 + 当前股票 */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginRight: 4 }}>
+          <span style={{
+            fontSize:      11,
+            fontFamily:    C.fontUI,
+            fontWeight:    800,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color:         C.accent,
+            whiteSpace:    'nowrap',
+          }}>QT</span>
+          <span style={{
+            fontSize:      9,
+            fontFamily:    C.fontUI,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color:         C.textDim,
+            whiteSpace:    'nowrap',
+          }}>QUANT TERMINAL</span>
+          {stockDisplayName && (
+            <>
+              <span style={{ color: C.border2, fontSize: 12 }}>/</span>
+              <span style={{
+                fontSize:   12,
+                fontFamily: C.fontData,
+                fontWeight: 600,
+                color:      C.text,
+                whiteSpace: 'nowrap',
+              }}>{stockDisplayName}</span>
+            </>
+          )}
+        </div>
 
         <StockSelector stocks={stocks} value={code} onChange={setCode} signals={watchlistSignals} />
         <PeriodSelector value={period} onChange={setPeriod} stockCode={code} usStockSource={usStockSource} />
@@ -326,42 +355,66 @@ export default function StockAnalysis() {
         />
 
         {/* 右侧工具栏 */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {/* 标记点开关 */}
           <button
             onClick={() => setShowMarkers(v => !v)}
             style={{
-              background:   showMarkers ? '#0d2137' : C.panelBg,
-              border:       `1px solid ${showMarkers ? C.accent : C.border2}`,
-              borderRadius: 6,
-              color:        showMarkers ? C.accentText : C.textMuted,
-              fontSize:     12,
-              cursor:       'pointer',
-              padding:      '5px 10px',
-              whiteSpace:   'nowrap',
+              background:    showMarkers ? C.accentBg : 'transparent',
+              border:        `1px solid ${showMarkers ? C.accent : C.border2}`,
+              borderRadius:  2,
+              color:         showMarkers ? C.accentText : C.textDim,
+              fontSize:      10,
+              fontFamily:    C.fontData,
+              letterSpacing: '0.08em',
+              cursor:        'pointer',
+              padding:       '4px 10px',
+              whiteSpace:    'nowrap',
             }}
             title="切换买卖标记点显示"
           >
-            {showMarkers ? '● 标记点 开' : '○ 标记点 关'}
+            {showMarkers ? 'MARKERS ON' : 'MARKERS OFF'}
           </button>
 
-          {loading && <span style={{ fontSize: 12, color: '#f0c040' }}>⏳ 加载中...</span>}
+          {loading && (
+            <span style={{
+              fontSize:      10,
+              fontFamily:    C.fontData,
+              letterSpacing: '0.06em',
+              color:         C.accent,
+            }}>LOADING...</span>
+          )}
           {lastUpdate && !loading && (
-            <span style={{ fontSize: 11, color: C.textMuted }}>更新: {lastUpdate}</span>
+            <span style={{
+              fontSize:   10,
+              fontFamily: C.fontData,
+              color:      C.textDim,
+            }}>{lastUpdate}</span>
           )}
           <Link
             to="/watchlist"
             style={{
-              fontSize: 13, color: C.accentText, textDecoration: 'none',
-              border: `1px solid ${C.border2}`, borderRadius: 6,
-              padding: '4px 10px',
+              fontSize:      10,
+              fontFamily:    C.fontData,
+              letterSpacing: '0.06em',
+              color:         C.accentText,
+              textDecoration: 'none',
+              border:        `1px solid ${C.border2}`,
+              borderRadius:  2,
+              padding:       '4px 10px',
             }}
           >
-            Watchlist总览 →
+            WATCHLIST →
           </Link>
-          {/* 版本号（FEAT-version：从 /api/health 获取，静默降级） */}
           {appVersion && (
-            <span style={{ fontSize: 11, color: C.textDim, userSelect: 'none', whiteSpace: 'nowrap' }}>
+            <span style={{
+              fontSize:      10,
+              fontFamily:    C.fontData,
+              letterSpacing: '0.04em',
+              color:         C.textDim,
+              userSelect:    'none',
+              whiteSpace:    'nowrap',
+            }}>
               {appVersion}
             </span>
           )}
@@ -371,20 +424,22 @@ export default function StockAnalysis() {
       {/* 错误提示 */}
       {error && (
         <div style={{
-          padding: '8px 20px', background: '#3a1a1a',
-          color: C.buyText, fontSize: 13,
-          borderBottom: `1px solid ${C.buy}`,
+          padding: '8px 20px', background: C.buyBg,
+          color: C.buyText, fontSize: 12,
+          fontFamily: C.fontData,
+          borderBottom: `1px solid ${C.buyBorder}`,
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
-          <span>⚠️ {error}</span>
+          <span>{error}</span>
           <button
             onClick={loadData}
             style={{
-              background: 'none', border: `1px solid ${C.buy}`,
-              borderRadius: 6, color: C.buyText,
-              fontSize: 12, cursor: 'pointer', padding: '3px 10px',
+              background: 'none', border: `1px solid ${C.buyBorder}`,
+              borderRadius: 2, color: C.buyText,
+              fontSize: 10, fontFamily: C.fontData, letterSpacing: '0.06em',
+              cursor: 'pointer', padding: '3px 10px',
             }}
-          >重试</button>
+          >RETRY</button>
         </div>
       )}
 
@@ -405,7 +460,7 @@ export default function StockAnalysis() {
           {/* ③ 主图 + 侧边说明栏 */}
           <div style={{
             display:      'flex',
-            borderRadius: 10,
+            borderRadius: 3,
             overflow:     'hidden',
             border:       `1px solid ${C.border}`,
             background:   C.chartBg,
@@ -418,7 +473,7 @@ export default function StockAnalysis() {
               stockCode={code}
             />
             <ChartSidebar
-              title="📊 K线 · 均线 · 布林带"
+              title="K线 · MA · BOLL"
               signal={signals?.MA || undefined}
               signalLabel={latestBar ? `收盘 ${latestBar.close}` : undefined}
               valueItems={latestBar ? [
@@ -436,24 +491,26 @@ export default function StockAnalysis() {
           </div>
 
           {/* 副图折叠控制按钮组 */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: C.textDim }}>显示副图：</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 9, fontFamily: C.fontUI, letterSpacing: '0.10em', textTransform: 'uppercase', color: C.textDim }}>PANELS</span>
             {['MACD', 'RSI', 'KDJ', 'VPA'].map(panel => (
               <button
                 key={panel}
                 onClick={() => togglePanel(panel)}
                 style={{
-                  background:   !collapsed[panel] ? '#0d2137' : C.panelBg,
-                  border:       `1px solid ${!collapsed[panel] ? C.accent : C.border2}`,
-                  borderRadius: 6,
-                  color:        !collapsed[panel] ? C.accentText : C.textMuted,
-                  fontSize:     11,
-                  cursor:       'pointer',
-                  padding:      '4px 12px',
-                  transition:   'all 0.15s',
+                  background:    !collapsed[panel] ? C.accentBg : 'transparent',
+                  border:        `1px solid ${!collapsed[panel] ? C.accent : C.border2}`,
+                  borderRadius:  2,
+                  color:         !collapsed[panel] ? C.accentText : C.textDim,
+                  fontSize:      10,
+                  fontFamily:    C.fontData,
+                  letterSpacing: '0.06em',
+                  cursor:        'pointer',
+                  padding:       '4px 10px',
+                  transition:    'all 0.12s',
                 }}
               >
-                {panel === 'MACD' ? 'MACD 趋势动能' : panel === 'RSI' ? 'RSI 超买超卖' : panel === 'KDJ' ? 'KDJ 短线时机' : 'VPA 量价共振'}
+                {panel === 'MACD' ? 'MACD' : panel === 'RSI' ? 'RSI' : panel === 'KDJ' ? 'KDJ' : 'VPA'}
               </button>
             ))}
           </div>
@@ -467,7 +524,7 @@ export default function StockAnalysis() {
           ) : (
             <div style={{
               display:      'flex',
-              borderRadius: 10,
+              borderRadius: 3,
               overflow:     'hidden',
               border:       `1px solid ${C.border}`,
               background:   C.chartBg,
@@ -480,7 +537,7 @@ export default function StockAnalysis() {
               />
               <ChartSidebar
                 key={`macd-sidebar-${code}`}
-                title="📶 MACD 趋势动能"
+                title="MACD · 趋势动能"
                 signal={signals.MACD}
                 onToggle={() => togglePanel('MACD')}
                 valueItems={[
@@ -511,7 +568,7 @@ export default function StockAnalysis() {
           ) : (
             <div style={{
               display:      'flex',
-              borderRadius: 10,
+              borderRadius: 3,
               overflow:     'hidden',
               border:       `1px solid ${C.border}`,
               background:   C.chartBg,
@@ -524,7 +581,7 @@ export default function StockAnalysis() {
               />
               <ChartSidebar
                 key={`rsi-sidebar-${code}`}
-                title="💪 RSI 超买超卖"
+                title="RSI · 超买超卖"
                 signal={signals.RSI}
                 onToggle={() => togglePanel('RSI')}
                 valueItems={rsiValue != null ? [
@@ -553,7 +610,7 @@ export default function StockAnalysis() {
           ) : (
             <div style={{
               display:      'flex',
-              borderRadius: 10,
+              borderRadius: 3,
               overflow:     'hidden',
               border:       `1px solid ${C.border}`,
               background:   C.chartBg,
@@ -566,7 +623,7 @@ export default function StockAnalysis() {
               />
               <ChartSidebar
                 key={`kdj-sidebar-${code}`}
-                title="🔀 KDJ 短线时机"
+                title="KDJ · 短线时机"
                 signal={signals.KDJ}
                 onToggle={() => togglePanel('KDJ')}
                 valueItems={[
@@ -597,7 +654,7 @@ export default function StockAnalysis() {
           ) : (
             <div style={{
               display:      'flex',
-              borderRadius: 10,
+              borderRadius: 3,
               overflow:     'hidden',
               border:       `1px solid ${C.border}`,
               background:   C.chartBg,
@@ -610,7 +667,7 @@ export default function StockAnalysis() {
               />
               <ChartSidebar
                 key={`vpa-sidebar-${code}`}
-                title="🛡️ VPA 量价共振防守"
+                title="VPA · 量价共振防守"
                 signal={signals.VPA_DEFENDER}
                 onToggle={() => togglePanel('VPA')}
                 valueItems={[
@@ -660,16 +717,18 @@ export default function StockAnalysis() {
           {[500, 200, 200, 200, 200].map((h, i) => (
             <div key={i} style={{
               height:       h,
-              borderRadius: 10,
+              borderRadius: 3,
               background:   C.panelBg,
               border:       `1px solid ${C.border}`,
               display:      'flex',
               alignItems:   'center',
               justifyContent: 'center',
-              color:        C.textMuted,
-              fontSize:     13,
+              color:        C.textDim,
+              fontSize:     10,
+              fontFamily:   C.fontData,
+              letterSpacing:'0.08em',
             }}>
-              {i === 0 ? '⏳ 数据加载中...' : ''}
+              {i === 0 ? 'LOADING...' : ''}
             </div>
           ))}
         </div>

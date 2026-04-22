@@ -1,6 +1,8 @@
 /**
  * components/StockSelector.jsx — 股票下拉选择
  *
+ * Midnight Amber 主题：深色 select、等宽字体
+ *
  * 分组策略（双层扁平化）：
  *   外层：市场（A股 → 港股 → 美股）
  *   内层：信号（看多 → 中性 → 看空），空组跳过
@@ -15,21 +17,35 @@
  * <option> 的 style.color 在 Safari/Firefox 中不生效，属已知平台限制。
  */
 import React from 'react'
+import { C } from '../utils/colors.js'
 
 const styles = {
-  label:  { fontSize: 13, color: '#8b949e', marginRight: 6 },
+  label: {
+    fontSize:      9,
+    fontFamily:    C.fontUI,
+    letterSpacing: '0.10em',
+    textTransform: 'uppercase',
+    color:         C.textDim,
+    marginRight:   8,
+  },
   select: {
-    background: '#1c2128', border: '1px solid #30363d',
-    padding: '4px 8px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-    minWidth: 200,
+    background:    C.panelBg,
+    border:        `1px solid ${C.border2}`,
+    padding:       '4px 8px',
+    borderRadius:  2,
+    fontSize:      12,
+    fontFamily:    C.fontData,
+    cursor:        'pointer',
+    minWidth:      200,
+    color:         C.text,
   },
 }
 
-/** 根据信号判断文字颜色：bullish=红，bearish=绿，neutral=默认 */
+/** 根据信号判断文字颜色 */
 function signalColor(signal) {
-  if (signal === 'bullish') return '#ef5350'  // 红涨
-  if (signal === 'bearish') return '#26a69a'  // 绿跌
-  return '#8b949e'  // 中性灰
+  if (signal === 'bullish') return C.buyText
+  if (signal === 'bearish') return C.sellText
+  return C.textMuted
 }
 
 /** 格式化显示标签：名称+代码 */
@@ -52,15 +68,11 @@ const SIGNAL_GROUPS = [
 ]
 
 export default function StockSelector({ stocks, value, onChange, signals }) {
-  // signals: { [stock_code]: 'bullish'|'bearish'|'neutral' }，可选
   const sigMap = signals || {}
 
-  // 找当前选中股票用于着色顶部选择框文字
   const selected = stocks.find(s => s.stock_code === value)
   const selectedSignal = selected ? (sigMap[value] || 'neutral') : 'neutral'
 
-  // 构建双层扁平化 optgroup 列表：先按市场，组内再按信号细分
-  // 结构：[{ groupLabel, signal, stocks }]，空组跳过
   const flatGroups = []
   for (const market of MARKET_GROUPS) {
     const marketStocks = stocks.filter(s => s.market === market.key)
@@ -79,7 +91,7 @@ export default function StockSelector({ stocks, value, onChange, signals }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
-      <span style={styles.label}>股票</span>
+      <span style={styles.label}>STOCK</span>
       <div style={{ position: 'relative' }}>
         <select
           style={{ ...styles.select, color: signalColor(selectedSignal) }}
@@ -98,9 +110,7 @@ export default function StockSelector({ stocks, value, onChange, signals }) {
                   <option
                     key={s.stock_code}
                     value={s.stock_code}
-                    // NOTE: option style.color 在 Safari/Firefox 中不生效，属已知平台限制；
-                    // 已选中项的颜色通过 <select> 自身的 color 属性正常显示（跨浏览器有效）
-                    style={{ color: signalColor(sig), background: '#1c2128' }}
+                    style={{ color: signalColor(sig), background: C.panelBg }}
                   >
                     {stockLabel(s)}
                   </option>

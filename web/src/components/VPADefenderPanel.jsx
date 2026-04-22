@@ -77,7 +77,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
       <div style={{
         height:       32,
         background:   C.chartBg,
-        borderRadius: 8,
+        borderRadius: 3,
         display:      'flex',
         alignItems:   'center',
         padding:      '0 12px',
@@ -91,7 +91,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
             fontWeight:   600,
             color:        sigCfg.color,
             padding:      '2px 8px',
-            borderRadius: 10,
+            borderRadius: 2,
             background:   `${sigCfg.color}18`,
           }}>
             {sigCfg.emoji} {sigCfg.label}
@@ -104,7 +104,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
             marginLeft:   'auto',
             background:   'none',
             border:       `1px solid ${C.border2}`,
-            borderRadius: 4,
+            borderRadius: 2,
             color:        C.textMuted,
             fontSize:     12,
             cursor:       'pointer',
@@ -335,7 +335,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
             fontWeight:   600,
             color:        sigCfg.color,
             padding:      '1px 8px',
-            borderRadius: 10,
+            borderRadius: 3,
             background:   `${sigCfg.color}18`,
           }}>
             {sigCfg.emoji} {sigCfg.label}
@@ -349,7 +349,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
             flexShrink:   0,
             background:   showHelp ? C.accentBg : 'none',
             border:       `1px solid ${showHelp ? C.accent : C.border2}`,
-            borderRadius: 4,
+            borderRadius: 2,
             color:        showHelp ? C.accentText : C.textMuted,
             fontSize:     11,
             fontWeight:   600,
@@ -366,7 +366,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
           margin:       '6px 12px 0',
           padding:      10,
           background:   C.panelBg,
-          borderRadius: 8,
+          borderRadius: 3,
           border:       `1px solid ${C.border}`,
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText, marginBottom: 6 }}>
