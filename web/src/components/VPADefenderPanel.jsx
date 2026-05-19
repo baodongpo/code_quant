@@ -84,7 +84,7 @@ const VPADefenderPanel = forwardRef(function VPADefenderPanel({ dates, closes, v
         gap:          10,
         border:       `1px solid ${C.border}`,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted }}>VPA-Defender</span>
+        <span style={{ fontSize: 13, fontFamily: C.fontUI, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.textMuted }}>VPA-Defender</span>
         {sigCfg && (
           <span style={{
             fontSize:     11,
@@ -328,7 +328,7 @@ const VPADefenderPanelInner = forwardRef(function VPADefenderPanelInner({
         alignItems: 'center',
         gap:        6,
       }}>
-        <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>VPA-Defender(22,3.0,20)</span>
+        <span style={{ fontSize: 12, fontFamily: C.fontUI, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.textMuted }}>VPA-Defender(22,3.0,20)</span>
         {sigCfg && (
           <span style={{
             fontSize:     11,

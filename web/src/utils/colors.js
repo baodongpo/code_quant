@@ -11,8 +11,8 @@
 
 export const C = {
   // ── 字体 ──
-  fontData: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-  fontUI:   "'Syne', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontData: "'SF Mono', ui-monospace, monospace",
+  fontUI:   "-apple-system, BlinkMacSystemFont, sans-serif",
 
   // ── 买入信号（红色系） ──
   buy:           '#e05252',          // 买入主色（暗红）

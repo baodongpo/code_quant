@@ -54,7 +54,7 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
             color:         C.textDim,
           }}>CLOSE</span>
           <span style={{
-            fontSize:   20,
+            fontSize:   24,
             fontFamily: C.fontData,
             fontWeight: 600,
             color:      C.text,
@@ -65,7 +65,7 @@ export default function BottomBar({ latestBar, signals, rsiValue }) {
               color:      changeColor,
               fontFamily: C.fontData,
               fontWeight: 600,
-              fontSize:   12,
+              fontSize:   16,
               letterSpacing: '0.02em',
             }}>
               {parseFloat(changePct) >= 0 ? '▲' : '▼'} {parseFloat(changePct) >= 0 ? '+' : ''}{changePct}%

@@ -11,10 +11,10 @@
 
 ## 当前状态
 
-- **v1.1.0 已发布**（2026-04-22），最新 tag `v1.1.0`
-- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）✅ 迭代12（futu统一美股数据源+市场分组UI）✅ 迭代13-patch（UI修复+futu美股）✅ v1.0.0（正式版发布）✅ 迭代14（Midnight Amber前端视觉重设计）✅
+- **v1.1.1-patch 已发布**（2026-05-19），最新 tag `v1.1.1-patch`
+- 迭代1（K线采集）✅ 迭代2（服务化+估值+导出）✅ 迭代3（指标可视化 Web 服务）✅ 迭代4（基本面/容灾/归档/告警）✅ 迭代5（稳定性加固+用户体验提升）✅ 迭代6（版本号+check-gaps+repair）✅ 迭代7（crosshair联动+VPA-Defender指标）✅ 迭代0.7.1-patch（VPA-Defender小修复）✅ 迭代8（UI体验优化）✅ 迭代8.1-patch（阻力线+图例按钮化）✅ 迭代8.2-patch（图例icon修复+toggle联动修复）✅ 迭代8.3-feat（Y轴名称+多轴规范）✅ 迭代8.4-patch（空洞检测BUG修复）✅ 迭代8.5-patch（临时停市空洞智能验证）✅ 迭代8.6-patch（no_data状态完善）✅ 迭代8.7-patch（check-gaps排除no_data空洞）✅ 迭代9（yfinance美股数据源）✅ 迭代10（TuShare美股数据源）✅ 迭代11（AkShare美股数据源）✅ 迭代12（futu统一美股数据源+市场分组UI）✅ 迭代13-patch（UI修复+futu美股）✅ v1.0.0（正式版发布）✅ 迭代14（Midnight Amber前端视觉重设计）✅ v1.1.1-patch（字体排版优化）✅
 - 虚拟环境 `env_quant/` 已创建（Python 3.10），依赖已安装
-- **当前状态**：v1.1.0 已发布，前端视觉重设计（迭代14）完成
+- **当前状态**：v1.1.1-patch 已发布，字体排版优化完成
 
 ---
 
@@ -264,6 +264,10 @@ git push origin main && git push origin <版本号>
   - [x] FEAT-components-redesign：SignalBanner、SignalTag、VPADefenderPanel、WatchlistPage、StockAnalysis 等全部组件视觉统一
   - [x] FEAT-no-emoji：UI 字符串全面去除 emoji，改用 Unicode 符号（▲▼—↑↓）
   - [x] FEAT-square-style：borderRadius 统一不超过 3px，工业仪器方角风格
+- [x] v1.1.1-patch（已完成 2026-05-19，tag v1.1.1-patch）：
+  - [x] FEAT-font-system：字体替换为 Mac 原生系统字体（SF Pro / SF Mono），去除 JetBrains Mono + Syne
+  - [x] FEAT-typography：关键数字字号提升（BottomBar 收盘价 20→24px，涨跌幅 12→16px；SignalBanner 结论文案 14→16px，综合得分 13→16px；ChartSidebar 标题 11→12px）
+  - [x] FEAT-nav-price：导航栏新增股票名 + 实时收盘价（28px）+ 涨跌幅（16px）大字展示
 
 ---
 

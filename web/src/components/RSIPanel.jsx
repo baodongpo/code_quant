@@ -38,14 +38,14 @@ const RSIPanel = forwardRef(function RSIPanel({ dates, rsi, signal, collapsed, o
       <div style={{
         height:       32,
         background:   C.chartBg,
-        borderRadius: 8,
+        borderRadius: 3,
         display:      'flex',
         alignItems:   'center',
         padding:      '0 12px',
         gap:          10,
         border:       `1px solid ${C.border}`,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted }}>RSI(14)</span>
+        <span style={{ fontSize: 13, fontFamily: C.fontUI, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.textMuted }}>RSI(14)</span>
         {latestRSI != null && (
           <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>{latestRSI.toFixed(1)}</span>
         )}
@@ -56,7 +56,7 @@ const RSIPanel = forwardRef(function RSIPanel({ dates, rsi, signal, collapsed, o
             marginLeft:   'auto',
             background:   'none',
             border:       `1px solid ${C.border2}`,
-            borderRadius: 4,
+            borderRadius: 2,
             color:        C.textMuted,
             fontSize:     12,
             cursor:       'pointer',
@@ -198,7 +198,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
         alignItems: 'center',
         gap:        6,
       }}>
-        <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>RSI(14)</span>
+        <span style={{ fontSize: 12, fontFamily: C.fontUI, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.textMuted }}>RSI(14)</span>
         {/* 迭代8 FEAT-guide-top: 新增 [?] 说明浮层按钮 */}
         <button
           onClick={() => setShowHelp(v => !v)}
@@ -207,7 +207,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
             flexShrink:   0,
             background:   showHelp ? C.accentBg : 'none',
             border:       `1px solid ${showHelp ? C.accent : C.border2}`,
-            borderRadius: 4,
+            borderRadius: 2,
             color:        showHelp ? C.accentText : C.textMuted,
             fontSize:     11,
             fontWeight:   600,
@@ -223,7 +223,7 @@ const RSIPanelInner = forwardRef(function RSIPanelInner({ dates, rsi14, signal, 
           margin:       '6px 12px 0',
           padding:      10,
           background:   C.panelBg,
-          borderRadius: 8,
+          borderRadius: 3,
           border:       `1px solid ${C.border}`,
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.accentText, marginBottom: 6 }}>

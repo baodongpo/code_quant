@@ -89,7 +89,7 @@ export default function SignalBanner({ level = 'neutral', score = 0, label = '',
                 borderRadius:  2,
               }}>{cfg.tag}</span>
               <span style={{
-                fontSize:   14,
+                fontSize:   16,
                 fontWeight: 600,
                 color:      cfg.titleColor,
               }}>
@@ -101,11 +101,11 @@ export default function SignalBanner({ level = 'neutral', score = 0, label = '',
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, color: C.textMuted, letterSpacing: '0.04em' }}>SCORE</span>
               <span style={{
-                fontSize:   13,
+                fontSize:   16,
                 fontFamily: C.fontData,
                 fontWeight: 700,
                 color:      cfg.titleColor,
-                minWidth:   28,
+                minWidth:   36,
               }}>
                 {score > 0 ? `+${score}` : score}
               </span>

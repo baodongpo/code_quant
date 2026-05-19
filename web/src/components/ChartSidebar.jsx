@@ -80,7 +80,7 @@ export default function ChartSidebar({
       {/* 标题 */}
       {title && (
         <div style={{
-          fontSize:      11,
+          fontSize:      12,
           fontFamily:    C.fontUI,
           fontWeight:    700,
           letterSpacing: '0.06em',

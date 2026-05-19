@@ -193,6 +193,9 @@ export default function StockAnalysis() {
   const dates      = bars.map(b => b.date)
   const closes     = bars.map(b => b.close)
   const latestBar  = bars[bars.length - 1] || null
+  const prevBar    = bars.length >= 2 ? bars[bars.length - 2] : null
+  const navChangePct = latestBar && prevBar ? ((latestBar.close - prevBar.close) / prevBar.close * 100) : null
+  const navPriceColor = navChangePct == null ? C.text : navChangePct > 0 ? C.buy : navChangePct < 0 ? C.sell : C.text
 
   // RSI 最新值
   const rsiList  = indicators?.RSI?.RSI14 || []
@@ -314,8 +317,8 @@ export default function StockAnalysis() {
         top:          0,
         zIndex:       100,
       }}>
-        {/* 系统标识 + 当前股票 */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginRight: 4 }}>
+        {/* 品牌标识 + 股票名 + 实时价格 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginRight: 8 }}>
           <span style={{
             fontSize:      11,
             fontFamily:    C.fontUI,
@@ -324,26 +327,36 @@ export default function StockAnalysis() {
             textTransform: 'uppercase',
             color:         C.accent,
             whiteSpace:    'nowrap',
+            flexShrink:    0,
           }}>QT</span>
-          <span style={{
-            fontSize:      9,
-            fontFamily:    C.fontUI,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color:         C.textDim,
-            whiteSpace:    'nowrap',
-          }}>QUANT TERMINAL</span>
           {stockDisplayName && (
-            <>
-              <span style={{ color: C.border2, fontSize: 12 }}>/</span>
-              <span style={{
-                fontSize:   12,
-                fontFamily: C.fontData,
-                fontWeight: 600,
-                color:      C.text,
-                whiteSpace: 'nowrap',
-              }}>{stockDisplayName}</span>
-            </>
+            <span style={{
+              fontSize:   15,
+              fontFamily: C.fontUI,
+              fontWeight: 600,
+              color:      C.text,
+              whiteSpace: 'nowrap',
+            }}>{stockDisplayName}</span>
+          )}
+          {latestBar && (
+            <span style={{
+              fontSize:      28,
+              fontFamily:    C.fontData,
+              fontWeight:    600,
+              color:         navPriceColor,
+              letterSpacing: '-0.02em',
+              lineHeight:    1,
+              whiteSpace:    'nowrap',
+            }}>{latestBar.close.toFixed(2)}</span>
+          )}
+          {navChangePct != null && (
+            <span style={{
+              fontSize:   16,
+              fontFamily: C.fontData,
+              fontWeight: 500,
+              color:      navPriceColor,
+              whiteSpace: 'nowrap',
+            }}>{navChangePct > 0 ? '+' : ''}{navChangePct.toFixed(2)}%</span>
           )}
         </div>
 
